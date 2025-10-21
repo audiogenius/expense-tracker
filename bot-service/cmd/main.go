@@ -91,24 +91,30 @@ func detectCategory(apiURL, description string) *int {
 func main() {
 	botToken := os.Getenv("TELEGRAM_BOT_TOKEN")
 	if botToken == "" {
-		fmt.Println("TELEGRAM_BOT_TOKEN not set")
+		fmt.Println("ERROR: TELEGRAM_BOT_TOKEN not set")
 		os.Exit(2)
 	}
 	apiURL := envOr("API_URL", "http://api:8080")
 	botKey := os.Getenv("BOT_API_KEY")
 	if botKey == "" {
-		fmt.Println("warning: BOT_API_KEY not set; internal endpoint may reject requests")
+		fmt.Println("WARNING: BOT_API_KEY not set; internal endpoint may reject requests")
 	}
+
+	fmt.Printf("Bot service starting...\n")
+	fmt.Printf("API URL: %s\n", apiURL)
+	fmt.Printf("Bot Token: %s...%s\n", botToken[:10], botToken[len(botToken)-10:])
 
 	// poll getUpdates
 	offset := 0
 	re := regexp.MustCompile(`^\s*([0-9]+(?:[.,][0-9]{1,2})?)\s*$`)
 
+	fmt.Println("✅ Bot is running! Waiting for messages...")
+
 	for {
 		uurl := fmt.Sprintf("https://api.telegram.org/bot%s/getUpdates?offset=%d&timeout=30", botToken, offset)
 		resp, err := http.Get(uurl)
 		if err != nil {
-			fmt.Println("getUpdates err:", err)
+			fmt.Printf("⚠️ getUpdates error: %v (retrying in 3s)\n", err)
 			time.Sleep(3 * time.Second)
 			continue
 		}
@@ -119,11 +125,17 @@ func main() {
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&data); err != nil {
 			resp.Body.Close()
-			fmt.Println("decode updates err:", err)
+			fmt.Printf("⚠️ decode updates error: %v (retrying in 3s)\n", err)
 			time.Sleep(3 * time.Second)
 			continue
 		}
 		resp.Body.Close()
+
+		if !data.Ok {
+			fmt.Println("⚠️ Telegram API returned ok=false")
+			time.Sleep(3 * time.Second)
+			continue
+		}
 		for _, item := range data.Result {
 			if updateIDf, ok := item["update_id"]; ok {
 				if uid, ok := updateIDf.(float64); ok {

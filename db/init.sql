@@ -53,5 +53,20 @@ CREATE TABLE IF NOT EXISTS debts (
   id SERIAL PRIMARY KEY,
   from_user INT REFERENCES users(id),
   to_user INT REFERENCES users(id),
-  amount_cents INT
+  amount_cents INT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Create indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_expenses_user_timestamp ON expenses(user_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category_id);
+CREATE INDEX IF NOT EXISTS idx_expenses_timestamp ON expenses(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_debts_from_user ON debts(from_user);
+CREATE INDEX IF NOT EXISTS idx_debts_to_user ON debts(to_user);
+CREATE INDEX IF NOT EXISTS idx_receipt_items_receipt ON receipt_items(receipt_id);
+CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id);
+
+-- Add constraints for data integrity
+ALTER TABLE expenses ADD CONSTRAINT IF NOT EXISTS check_amount_positive CHECK (amount_cents > 0);
+ALTER TABLE debts ADD CONSTRAINT IF NOT EXISTS check_debt_amount_positive CHECK (amount_cents > 0);
+ALTER TABLE debts ADD CONSTRAINT IF NOT EXISTS check_different_users CHECK (from_user != to_user);

@@ -15,24 +15,36 @@ services:
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   api:
     build: ./api-service
     container_name: expense_api
     env_file: .env
     depends_on:
-      - db
-      - ocr
+      db:
+        condition: service_healthy
     ports:
       - "8080:8080"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   bot:
     build: ./bot-service
     container_name: expense_bot
     env_file: .env
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     restart: unless-stopped
 
   ocr:

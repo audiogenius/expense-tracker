@@ -6,6 +6,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -37,6 +38,13 @@ func main() {
 	r := chi.NewRouter()
 	// Global request logging
 	r.Use(a.RequestLogger)
+
+	// Health check endpoint
+	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok", "service": "api"})
+	})
 
 	// Public login endpoint
 	r.Post("/login", h.Login)
