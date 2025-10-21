@@ -1,21 +1,26 @@
+/* Modern Glassmorphism Design with Mobile-First Approach */
 :root {
-  --bg: #0a0e1a;
-  --bg-gradient: linear-gradient(135deg, #0a0e1a 0%, #1a1f35 100%);
-  --card-bg: rgba(255, 255, 255, 0.05);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --accent: #8b5cf6;
-  --accent-hover: #7c3aed;
-  --accent-glow: rgba(139, 92, 246, 0.3);
-  --muted: rgba(255, 255, 255, 0.65);
-  --text-primary: #ffffff;
-  --success: #10b981;
-  --error: #ef4444;
+  --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --gradient-secondary: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  --glass-bg: rgba(255, 255, 255, 0.08);
+  --glass-bg-hover: rgba(255, 255, 255, 0.12);
+  --glass-border: rgba(255, 255, 255, 0.18);
+  --text: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.85);
+  --text-muted: rgba(255, 255, 255, 0.6);
+  --accent: #a78bfa;
+  --accent-hover: #c4b5fd;
+  --shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+  --shadow-lg: 0 20px 60px 0 rgba(31, 38, 135, 0.5);
+  --border-radius: 20px;
+  --border-radius-sm: 12px;
+  --spacing: 24px;
 }
 
 * {
-  box-sizing: border-box;
   margin: 0;
   padding: 0;
+  box-sizing: border-box;
 }
 
 html, body, #root {
@@ -24,168 +29,124 @@ html, body, #root {
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-  background: 
-    radial-gradient(ellipse at top left, rgba(139, 92, 246, 0.15), transparent 50%),
-    radial-gradient(ellipse at bottom right, rgba(59, 130, 246, 0.12), transparent 50%),
-    radial-gradient(ellipse at top right, rgba(236, 72, 153, 0.08), transparent 50%),
-    var(--bg);
-  background-attachment: fixed;
-  color: var(--text-primary);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+  background: var(--gradient-primary);
+  color: var(--text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  padding: 16px;
+  padding: var(--spacing);
   min-height: 100vh;
+  position: relative;
   overflow-x: hidden;
+}
+
+/* Animated background */
+body::before {
+  content: '';
+  position: fixed;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: 
+    radial-gradient(circle at 20% 50%, rgba(168, 139, 250, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(196, 181, 253, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 40% 20%, rgba(147, 51, 234, 0.1) 0%, transparent 40%);
+  animation: float 30s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes float {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  33% { transform: translate(30px, -30px) rotate(5deg); }
+  66% { transform: translate(-20px, 20px) rotate(-5deg); }
 }
 
 .app-center {
   max-width: 1200px;
   margin: 0 auto;
   display: flex;
-  gap: 20px;
+  gap: var(--spacing);
   align-items: flex-start;
   justify-content: center;
   flex-direction: column;
-  animation: fadeIn 0.6s ease-out;
+  position: relative;
+  z-index: 1;
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
+/* Glass Cards */
 .glass-card {
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.08) 0%,
-    rgba(255, 255, 255, 0.02) 100%
-  );
+  background: var(--glass-bg);
   border: 1px solid var(--glass-border);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  padding: 24px;
-  border-radius: 20px;
-  box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  padding: var(--spacing);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
   width: 100%;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;
-  transition: all 0.3s ease;
 }
 
 .glass-card::before {
   content: '';
   position: absolute;
   top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.2),
-    transparent
-  );
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  transition: left 0.5s;
 }
 
 .glass-card:hover {
   transform: translateY(-2px);
-  box-shadow: 
-    0 12px 48px rgba(0, 0, 0, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.15),
-    0 0 0 1px rgba(139, 92, 246, 0.2);
+  box-shadow: var(--shadow-lg);
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
+.glass-card:hover::before {
+  left: 100%;
+}
+
+/* Hero Section - LOGIN PAGE */
 .hero {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  flex-wrap: wrap;
+  gap: 20px;
+  min-height: 120px;
+}
+
+/* Auth Page Styling */
+.hero:has(.controls > div:first-child) {
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 40px 20px;
+  background: linear-gradient(135deg, rgba(168, 139, 250, 0.15), rgba(196, 181, 253, 0.1));
+  border: 2px solid var(--glass-border);
 }
 
 .title {
-  font-size: 32px;
+  font-size: clamp(24px, 5vw, 32px);
   font-weight: 700;
   margin: 0;
-  background: linear-gradient(135deg, #ffffff 0%, #a78bfa 100%);
+  background: linear-gradient(135deg, #fff 0%, rgba(255, 255, 255, 0.8) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  letter-spacing: -0.5px;
+  letter-spacing: -0.02em;
 }
 
 .subtitle {
-  color: var(--muted);
-  margin: 8px 0 0 0;
-  font-size: 15px;
+  color: var(--text-muted);
+  margin: 12px 0 0 0;
+  font-size: clamp(13px, 2vw, 15px);
+  font-weight: 400;
   line-height: 1.6;
-}
-
-/* Login page styles */
-.login-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 40px 24px;
-  gap: 24px;
-}
-
-.login-header {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  animation: slideDown 0.6s ease-out;
-}
-
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.login-icon {
-  width: 80px;
-  height: 80px;
-  margin: 0 auto 16px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
-  border-radius: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 40px;
-  box-shadow: 0 8px 24px var(--accent-glow);
-  animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    box-shadow: 0 8px 24px var(--accent-glow);
-  }
-  50% {
-    box-shadow: 0 12px 32px rgba(139, 92, 246, 0.5);
-  }
-}
-
-.telegram-widget-container {
-  margin-top: 8px;
-  display: flex;
-  justify-content: center;
 }
 
 /* Controls */
@@ -194,68 +155,91 @@ body {
   gap: 12px;
   align-items: center;
   flex-wrap: wrap;
+  width: 100%;
 }
 
+/* Telegram Login Button Container */
+#telegram-login-placeholder {
+  margin: 20px 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 50px;
+}
+
+/* Custom iframe styling for Telegram widget */
+#telegram-login-placeholder iframe {
+  border-radius: var(--border-radius-sm) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Inputs & Selects */
 input[type=text],
 input[type=number],
 select {
-  padding: 12px 16px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 14px 16px;
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--glass-border);
   background: rgba(255, 255, 255, 0.05);
-  color: inherit;
+  color: var(--text);
+  font-size: 15px;
   min-width: 180px;
-  font-size: 14px;
-  transition: all 0.3s ease;
-  outline: none;
+  transition: all 0.3s;
+  backdrop-filter: blur(10px);
 }
 
 input[type=text]:focus,
 input[type=number]:focus,
 select:focus {
+  outline: none;
   border-color: var(--accent);
   background: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 0 0 3px var(--accent-glow);
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.2);
 }
 
+input[type=text]::placeholder,
+input[type=number]::placeholder {
+  color: var(--text-muted);
+}
+
+/* Buttons */
 button {
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+  background: var(--accent);
   border: none;
   color: #fff;
   padding: 12px 24px;
-  border-radius: 12px;
+  border-radius: var(--border-radius-sm);
   cursor: pointer;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
-  transition: all 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 16px rgba(167, 139, 250, 0.3);
   position: relative;
   overflow: hidden;
-  box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
 }
 
 button::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.2),
-    transparent
-  );
-  transition: left 0.5s ease;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
 }
 
 button:hover::before {
-  left: 100%;
+  width: 300px;
+  height: 300px;
 }
 
 button:hover {
+  background: var(--accent-hover);
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
+  box-shadow: 0 8px 24px rgba(167, 139, 250, 0.4);
 }
 
 button:active {
@@ -263,24 +247,22 @@ button:active {
 }
 
 button.secondary {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  border: 1px solid var(--glass-border);
   box-shadow: none;
 }
 
 button.secondary:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--accent);
 }
 
 button.active {
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+  background: var(--accent);
   border: 1px solid var(--accent);
-  box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
 }
 
-/* Expenses list */
+/* Expenses List */
 .expenses {
   margin: 0;
   padding: 0;
@@ -293,12 +275,13 @@ button.active {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  transition: all 0.2s ease;
-  border-radius: 12px;
+  transition: all 0.3s;
+  border-radius: var(--border-radius-sm);
+  margin-bottom: 8px;
 }
 
 .expense-item:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.05);
   transform: translateX(4px);
 }
 
@@ -314,21 +297,21 @@ button.active {
 
 .expense-date {
   font-size: 13px;
-  color: var(--muted);
+  color: var(--text-muted);
+  font-weight: 500;
 }
 
 .expense-category {
   font-size: 15px;
   font-weight: 600;
+  color: var(--text-secondary);
 }
 
 .expense-amount {
   font-size: 18px;
   font-weight: 700;
-  background: linear-gradient(135deg, var(--accent), #a78bfa);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--accent);
+  white-space: nowrap;
 }
 
 /* Stats */
@@ -343,36 +326,51 @@ button.active {
 .stat-card {
   flex: 1;
   min-width: 200px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: var(--border-radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.3s;
+}
+
+.stat-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: scale(1.02);
 }
 
 .stat-label {
   font-size: 13px;
-  color: var(--muted);
+  color: var(--text-muted);
   margin-bottom: 8px;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.05em;
+  font-weight: 600;
 }
 
 .stat-value {
-  font-size: 32px;
-  font-weight: 700;
-  background: linear-gradient(135deg, var(--accent), #a78bfa);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  font-size: clamp(24px, 4vw, 32px);
+  font-weight: 800;
+  color: var(--accent);
 }
 
 /* Charts */
 .charts-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: var(--spacing);
   width: 100%;
 }
 
 .chart-container {
   min-height: 320px;
-  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-container h3 {
+  margin-bottom: 20px;
+  font-size: 18px;
+  font-weight: 700;
 }
 
 /* Spinner */
@@ -380,25 +378,25 @@ button.active {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  border: 4px solid rgba(255, 255, 255, 0.1);
+  border: 4px solid rgba(255, 255, 255, 0.12);
   border-top-color: var(--accent);
-  animation: spin 1s linear infinite;
-  margin: 16px auto;
+  animation: spin 0.8s linear infinite;
+  margin: 20px auto;
 }
 
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }
 
+/* Widget Error */
 .widget-error {
   color: #fca5a5;
   background: rgba(239, 68, 68, 0.1);
   padding: 16px;
-  border-radius: 12px;
+  border-radius: var(--border-radius-sm);
   border: 1px solid rgba(239, 68, 68, 0.2);
-  margin-top: 12px;
+  margin-top: 16px;
+  font-size: 14px;
 }
 
 .widget-retry {
@@ -408,10 +406,14 @@ button.active {
   justify-content: center;
 }
 
-/* Responsive */
+/* Responsive Design - Mobile First */
 @media (max-width: 768px) {
+  :root {
+    --spacing: 16px;
+  }
+
   body {
-    padding: 12px;
+    padding: 16px;
   }
 
   .app-center {
@@ -425,8 +427,9 @@ button.active {
 
   .hero {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 16px;
+    align-items: stretch;
+    text-align: center;
+    padding: 30px 16px;
   }
 
   .title {
@@ -439,15 +442,18 @@ button.active {
 
   .controls {
     flex-direction: column;
-    width: 100%;
+    align-items: stretch;
   }
 
   input[type=text],
   input[type=number],
-  select,
-  button {
+  select {
     width: 100%;
     min-width: auto;
+  }
+
+  button {
+    width: 100%;
   }
 
   .charts-grid {
@@ -471,31 +477,66 @@ button.active {
   }
 
   .expense-amount {
-    font-size: 16px;
-  }
-
-  .login-icon {
-    width: 64px;
-    height: 64px;
-    font-size: 32px;
+    align-self: flex-end;
+    font-size: 20px;
   }
 }
 
 @media (max-width: 480px) {
-  .title {
-    font-size: 20px;
+  body {
+    padding: 12px;
   }
 
   .glass-card {
     padding: 16px;
   }
 
+  .hero {
+    padding: 24px 12px;
+  }
+
+  .title {
+    font-size: 20px;
+  }
+
   .charts-grid {
     gap: 16px;
   }
+}
 
-  .chart-container {
-    min-height: 250px;
-    padding: 16px;
-  }
+/* Profile Avatar */
+.profile-avatar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: var(--border-radius-sm);
+  backdrop-filter: blur(10px);
+}
+
+.profile-avatar img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--accent);
+}
+
+.profile-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.profile-name {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.profile-label {
+  font-size: 12px;
+  color: var(--text-muted);
 }
