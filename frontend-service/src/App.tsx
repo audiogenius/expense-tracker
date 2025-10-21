@@ -441,7 +441,7 @@ const App: React.FC = () => {
                     legend: {
                       labels: {
                         color: '#ffffff',
-                        font: { size: 14, weight: '600' }
+                        font: { size: 14, weight: 'bold' }
                       }
                     }
                   },
@@ -466,7 +466,7 @@ const App: React.FC = () => {
                     legend: {
                       labels: {
                         color: '#ffffff',
-                        font: { size: 14, weight: '600' }
+                        font: { size: 14, weight: 'bold' }
                       }
                     }
                   }
