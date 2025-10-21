@@ -65,6 +65,23 @@ const App: React.FC = () => {
   const [widgetLoading, setWidgetLoading] = useState<boolean>(false)
   const [widgetError, setWidgetError] = useState<string | null>(null)
 
+  // Check for Telegram auth params in URL on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.has('id') && params.has('hash')) {
+      const authData: Record<string, string> = {}
+      params.forEach((value, key) => {
+        authData[key] = value
+      })
+      
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname)
+      
+      // Process auth
+      void onTelegramAuth(authData)
+    }
+  }, [])
+
   useEffect(() => {
     // If user is authenticated, ensure widget is not present
     if (token) {
@@ -79,24 +96,16 @@ const App: React.FC = () => {
     setWidgetLoading(true)
     setWidgetError(null)
 
-    // prepare global callback that will forward the payload into React
-    const win: any = window
-    win.TelegramLoginWidget = win.TelegramLoginWidget || {}
-    win.TelegramLoginWidget.onAuth = (user: Record<string, any>) => {
-      // call React handler directly
-      void onTelegramAuth(user)
-    }
-
     // inject the widget script into the container
     const script = document.createElement('script')
-    script.src = 'https://telegram.org/js/telegram-widget.js?15'
+    script.src = 'https://telegram.org/js/telegram-widget.js?22'
     script.async = true
     script.setAttribute('data-telegram-login', 'rd_expense_tracker_bot')
     script.setAttribute('data-size', 'large')
     script.setAttribute('data-userpic', 'false')
     script.setAttribute('data-request-access', 'write')
     script.setAttribute('data-lang', 'ru')
-    script.setAttribute('data-onauth', 'window.TelegramLoginWidget.onAuth')
+    script.setAttribute('data-auth-url', window.location.origin + window.location.pathname)
 
     // handle load/error events
     const onLoad = () => { setWidgetLoading(false); setWidgetError(null) }
@@ -109,7 +118,6 @@ const App: React.FC = () => {
     return () => {
       // cleanup
       try { container.innerHTML = '' } catch (e) {}
-      try { delete (window as any).TelegramLoginWidget.onAuth } catch (e) {}
       script.removeEventListener('load', onLoad)
       script.removeEventListener('error', onError)
     }
@@ -140,16 +148,6 @@ const App: React.FC = () => {
     }
   }
 
-  const simulateLogin = async () => {
-    const demoId = String(123456789)
-    const demoProfile = { username: 'demo', id: demoId }
-    const demoToken = 'dev-token-' + demoId
-    localStorage.setItem('token', demoToken)
-    localStorage.setItem('profile', JSON.stringify(demoProfile))
-    setProfile(demoProfile)
-    setToken(demoToken)
-    setExpenses([])
-  }
 
   const fetchCategories = async () => {
     try {
@@ -326,7 +324,6 @@ const App: React.FC = () => {
                   </div>
                 )}
               </div>
-              <button onClick={simulateLogin} className="secondary">Simulate Login (dev)</button>
             </div>
           ) : (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
