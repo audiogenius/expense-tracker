@@ -64,6 +64,7 @@ const App: React.FC = () => {
   const widgetRef = React.useRef<HTMLDivElement | null>(null)
   const [widgetLoading, setWidgetLoading] = useState<boolean>(false)
   const [widgetError, setWidgetError] = useState<string | null>(null)
+  const [domainInvalid, setDomainInvalid] = useState<boolean>(false)
 
   // Check for Telegram auth params in URL on mount
   useEffect(() => {
@@ -80,6 +81,20 @@ const App: React.FC = () => {
       // Process auth
       void onTelegramAuth(authData)
     }
+  }, [])
+
+  // Listen for "Bot domain invalid" error from Telegram iframe
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && typeof event.data === 'string') {
+        if (event.data.includes('Bot domain invalid') || event.data.includes('domain')) {
+          setDomainInvalid(true)
+        }
+      }
+    }
+    
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
   }, [])
 
   useEffect(() => {
@@ -281,6 +296,37 @@ const App: React.FC = () => {
     if (!categoryId) return 'Без категории'
     const cat = categories.find(c => c.id === categoryId)
     return cat ? cat.name : 'Неизвестно'
+  }
+
+  // Show "НЕТ" fullscreen if domain is invalid
+  if (domainInvalid && !token) {
+    return (
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--bg)',
+        zIndex: 9999
+      }}>
+        <div style={{
+          fontSize: 'clamp(120px, 30vw, 300px)',
+          fontWeight: 900,
+          color: '#ffffff',
+          textAlign: 'center',
+          lineHeight: 1,
+          letterSpacing: '-0.05em',
+          animation: 'pulse 2s ease-in-out infinite',
+          textShadow: '0 0 40px rgba(255, 255, 255, 0.3)'
+        }}>
+          НЕТ
+        </div>
+      </div>
+    )
   }
 
   return (
