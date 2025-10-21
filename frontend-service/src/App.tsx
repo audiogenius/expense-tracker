@@ -94,7 +94,8 @@ const App: React.FC = () => {
     script.setAttribute('data-telegram-login', 'rd_expense_tracker_bot')
     script.setAttribute('data-size', 'large')
     script.setAttribute('data-userpic', 'false')
-    script.setAttribute('data-lang', 'en')
+    script.setAttribute('data-request-access', 'write')
+    script.setAttribute('data-lang', 'ru')
     script.setAttribute('data-onauth', 'window.TelegramLoginWidget.onAuth')
 
     // handle load/error events
