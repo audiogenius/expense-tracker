@@ -67,6 +67,17 @@ CREATE INDEX IF NOT EXISTS idx_receipt_items_receipt ON receipt_items(receipt_id
 CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id);
 
 -- Add constraints for data integrity
-ALTER TABLE expenses ADD CONSTRAINT IF NOT EXISTS check_amount_positive CHECK (amount_cents > 0);
-ALTER TABLE debts ADD CONSTRAINT IF NOT EXISTS check_debt_amount_positive CHECK (amount_cents > 0);
-ALTER TABLE debts ADD CONSTRAINT IF NOT EXISTS check_different_users CHECK (from_user != to_user);
+DO $$ 
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'check_amount_positive') THEN
+    ALTER TABLE expenses ADD CONSTRAINT check_amount_positive CHECK (amount_cents > 0);
+  END IF;
+  
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'check_debt_amount_positive') THEN
+    ALTER TABLE debts ADD CONSTRAINT check_debt_amount_positive CHECK (amount_cents > 0);
+  END IF;
+  
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'check_different_users') THEN
+    ALTER TABLE debts ADD CONSTRAINT check_different_users CHECK (from_user != to_user);
+  END IF;
+END $$;
