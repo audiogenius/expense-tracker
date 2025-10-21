@@ -285,68 +285,65 @@ const App: React.FC = () => {
 
   return (
     <div className="app-center">
-      <div className="glass-card hero">
-        <div>
-          <h1 className="title">Expense Tracker</h1>
-          <div className="subtitle">Минимальный семейный трекер расходов — вход через Telegram</div>
-          {profile && (
-            <div className="profile-avatar">
-              {profile.photo_url && (
-                <img src={profile.photo_url} alt="avatar" />
-              )}
-              <div className="profile-info">
-                <div className="profile-label">Вошли как</div>
-                <div className="profile-name">{profile.username}</div>
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="controls">
-          {!token ? (
-            <div>
-              <div>
-                <div id="telegram-login-placeholder" ref={widgetRef} />
-                {widgetLoading && <div className="spinner" aria-hidden />}
-                {widgetError && (
-                  <div className="widget-error">
-                    <div>{widgetError}</div>
-                    <div className="widget-retry">
-                      <button onClick={() => {
-                        if (widgetRef.current) widgetRef.current.innerHTML = ''
-                        setWidgetLoading(true)
-                        setWidgetError(null)
-                        setTimeout(() => {
-                          if (widgetRef.current) {
-                            const evt = new Event('widget-retry')
-                            window.dispatchEvent(evt)
-                          }
-                        }, 50)
-                      }}>Retry</button>
-                      <button className="secondary" onClick={() => setWidgetError(null)}>Dismiss</button>
-                    </div>
+      {token ? (
+        <>
+          {/* Header with Profile and Logout */}
+          <div className="header-bar">
+            <div className="header-left">
+              <h1 className="title" style={{ fontSize: '24px', margin: 0 }}>Expense Tracker</h1>
+              {profile && (
+                <div className="profile-avatar" style={{ padding: '8px 12px' }}>
+                  {profile.photo_url && <img src={profile.photo_url} alt="avatar" style={{ width: '32px', height: '32px' }} />}
+                  <div className="profile-info">
+                    <div className="profile-name">{profile.username}</div>
                   </div>
-                )}
+                </div>
+              )}
+            </div>
+            <button onClick={logout} className="logout-btn" title="Выход">✕</button>
+          </div>
+        </>
+      ) : (
+        <div className="glass-card hero">
+          <div className="hero-content">
+            <h1 className="title">Expense Tracker</h1>
+            <div className="subtitle">Минимальный семейный трекер расходов — вход через Telegram</div>
+            <div id="telegram-login-placeholder" ref={widgetRef} />
+            {widgetLoading && <div className="spinner" aria-hidden />}
+            {widgetError && (
+              <div className="widget-error">
+                <div>{widgetError}</div>
+                <div className="widget-retry">
+                  <button onClick={() => {
+                    if (widgetRef.current) widgetRef.current.innerHTML = ''
+                    setWidgetLoading(true)
+                    setWidgetError(null)
+                    setTimeout(() => {
+                      if (widgetRef.current) {
+                        const evt = new Event('widget-retry')
+                        window.dispatchEvent(evt)
+                      }
+                    }, 50)
+                  }}>Retry</button>
+                  <button className="secondary" onClick={() => setWidgetError(null)}>Dismiss</button>
+                </div>
               </div>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <button onClick={logout} className="secondary">Logout</button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {token && (
         <>
           {/* Total Summary */}
           <div className="glass-card">
-            <h3 style={{ margin: 0, marginBottom: 12 }}>📊 Общие расходы</h3>
+            <h3 style={{ margin: 0, marginBottom: 16, color: '#ffffff' }}>Общие расходы</h3>
             <div className="stats-grid">
               <div className="stat-card">
                 <div className="stat-label">За выбранный период</div>
                 <div className="stat-value">{totalExpenses.total_rubles?.toFixed(2) || '0.00'} ₽</div>
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div className="period-buttons">
                 <button 
                   className={filterPeriod === 'all' ? 'active' : 'secondary'}
                   onClick={() => setFilterPeriod('all')}
@@ -365,8 +362,8 @@ const App: React.FC = () => {
 
           {/* Add Expense */}
           <div className="glass-card">
-            <h3 style={{ margin: 0, marginBottom: 12 }}>➕ Добавить расход</h3>
-            <div className="controls" style={{ marginBottom: 8, flexWrap: 'wrap' }}>
+            <h3 style={{ margin: 0, marginBottom: 16, color: '#ffffff' }}>Добавить расход</h3>
+            <div className="controls">
               <input 
                 type="number" 
                 placeholder="Сумма (руб.)" 
@@ -376,7 +373,6 @@ const App: React.FC = () => {
               <select 
                 value={selectedCategory || ''} 
                 onChange={(e) => setSelectedCategory(e.target.value ? parseInt(e.target.value) : null)}
-                style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)', color: 'inherit' }}
               >
                 <option value="">Без категории</option>
                 {categories.map(cat => (
@@ -391,24 +387,55 @@ const App: React.FC = () => {
           {filteredExpenses.length > 0 && (
             <div className="charts-grid">
               <div className="glass-card chart-container">
-                <h3 style={{ margin: 0, marginBottom: 12 }}>📈 Расходы за последние 7 дней</h3>
-                <Line data={prepareLineChartData()} options={{ responsive: true, maintainAspectRatio: true }} />
+                <h3>Расходы за последние 7 дней</h3>
+                <Line data={prepareLineChartData()} options={{ 
+                  responsive: true, 
+                  maintainAspectRatio: true,
+                  plugins: {
+                    legend: {
+                      labels: {
+                        color: '#ffffff',
+                        font: { size: 14, weight: '600' }
+                      }
+                    }
+                  },
+                  scales: {
+                    x: {
+                      ticks: { color: '#ffffff' },
+                      grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                    },
+                    y: {
+                      ticks: { color: '#ffffff' },
+                      grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                    }
+                  }
+                }} />
               </div>
               <div className="glass-card chart-container">
-                <h3 style={{ margin: 0, marginBottom: 12 }}>🥧 По категориям</h3>
-                <Pie data={preparePieChartData()} options={{ responsive: true, maintainAspectRatio: true }} />
+                <h3>По категориям</h3>
+                <Pie data={preparePieChartData()} options={{ 
+                  responsive: true, 
+                  maintainAspectRatio: true,
+                  plugins: {
+                    legend: {
+                      labels: {
+                        color: '#ffffff',
+                        font: { size: 14, weight: '600' }
+                      }
+                    }
+                  }
+                }} />
               </div>
             </div>
           )}
 
           {/* Expenses List */}
           <div className="glass-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <h3 style={{ margin: 0 }}>📋 Последние расходы</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: '12px' }}>
+              <h3 style={{ margin: 0, color: '#ffffff' }}>Последние расходы</h3>
               <select 
                 value={filterCategory || ''} 
                 onChange={(e) => setFilterCategory(e.target.value ? parseInt(e.target.value) : null)}
-                style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)', color: 'inherit', fontSize: '13px' }}
               >
                 <option value="">Все категории</option>
                 {categories.map(cat => (
@@ -433,12 +460,6 @@ const App: React.FC = () => {
             </ul>
           </div>
         </>
-      )}
-
-      {!token && (
-        <div className="glass-card">
-          <p className="subtitle">Войдите через Telegram для управления расходами.</p>
-        </div>
       )}
     </div>
   )
