@@ -300,35 +300,31 @@ const App: React.FC = () => {
         </div>
         <div className="controls">
           {!token ? (
-            <div>
-              <div>
-                <div id="telegram-login-placeholder" ref={widgetRef} />
-                {widgetLoading && <div className="spinner" aria-hidden />}
-                {widgetError && (
-                  <div className="widget-error">
-                    <div>{widgetError}</div>
-                    <div className="widget-retry">
-                      <button onClick={() => {
-                        if (widgetRef.current) widgetRef.current.innerHTML = ''
-                        setWidgetLoading(true)
-                        setWidgetError(null)
-                        setTimeout(() => {
-                          if (widgetRef.current) {
-                            const evt = new Event('widget-retry')
-                            window.dispatchEvent(evt)
-                          }
-                        }, 50)
-                      }}>Retry</button>
-                      <button className="secondary" onClick={() => setWidgetError(null)}>Dismiss</button>
-                    </div>
+            <div className="telegram-widget-container">
+              <div id="telegram-login-placeholder" ref={widgetRef} />
+              {widgetLoading && <div className="spinner" aria-hidden />}
+              {widgetError && (
+                <div className="widget-error">
+                  <div>{widgetError}</div>
+                  <div className="widget-retry">
+                    <button onClick={() => {
+                      if (widgetRef.current) widgetRef.current.innerHTML = ''
+                      setWidgetLoading(true)
+                      setWidgetError(null)
+                      setTimeout(() => {
+                        if (widgetRef.current) {
+                          const evt = new Event('widget-retry')
+                          window.dispatchEvent(evt)
+                        }
+                      }, 50)
+                    }}>Повторить</button>
+                    <button className="secondary" onClick={() => setWidgetError(null)}>Закрыть</button>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           ) : (
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <button onClick={logout} className="secondary">Logout</button>
-            </div>
+            <button onClick={logout} className="secondary">Выйти</button>
           )}
         </div>
       </div>
@@ -433,8 +429,13 @@ const App: React.FC = () => {
       )}
 
       {!token && (
-        <div className="glass-card">
-          <p className="subtitle">Войдите через Telegram для управления расходами.</p>
+        <div className="glass-card login-container">
+          <div className="login-header">
+            <div className="login-icon">💰</div>
+            <p className="subtitle" style={{ fontSize: '16px', maxWidth: '400px', margin: '0 auto' }}>
+              Начните отслеживать свои расходы прямо сейчас. Быстро, безопасно и удобно через Telegram.
+            </p>
+          </div>
         </div>
       )}
     </div>
