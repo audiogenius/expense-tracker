@@ -66,6 +66,14 @@ func main() {
 		r.Get("/expenses/total", h.GetTotalExpenses)
 		r.Post("/expenses/shared", h.CreateSharedExpense)
 		r.Get("/debts", h.GetDebts)
+		
+		// Incomes endpoints
+		r.Post("/incomes", h.AddIncome)
+		r.Get("/incomes", h.GetIncomes)
+		r.Get("/incomes/total", h.GetTotalIncomes)
+		
+		// Balance endpoint
+		r.Get("/balance", h.GetBalance)
 	})
 
 	srv := &http.Server{

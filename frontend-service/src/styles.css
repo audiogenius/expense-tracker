@@ -310,6 +310,64 @@ button.active {
   flex-wrap: wrap;
 }
 
+/* Balance Grid */
+.balance-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.balance-card {
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: var(--border-radius-sm);
+  text-align: center;
+  border: none;
+}
+
+.balance-label {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+
+.balance-value {
+  font-size: clamp(40px, 6vw, 56px);
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 0 20px currentColor;
+}
+
+.balance-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.balance-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  border: none;
+}
+
+.balance-stat-label {
+  font-size: 14px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.balance-stat-value {
+  font-size: 16px;
+  font-weight: 700;
+}
+
 /* Stats Grid */
 .stats-grid {
   display: flex;

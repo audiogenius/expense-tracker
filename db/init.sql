@@ -54,7 +54,20 @@ CREATE TABLE IF NOT EXISTS debts (
   from_user INT REFERENCES users(id),
   to_user INT REFERENCES users(id),
   amount_cents INT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  is_paid BOOLEAN DEFAULT FALSE,
+  paid_at TIMESTAMPTZ
+);
+
+-- Income types: salary, debt_return, prize, gift, refund, other
+CREATE TABLE IF NOT EXISTS incomes (
+  id SERIAL PRIMARY KEY,
+  user_id INT REFERENCES users(id),
+  amount_cents INT NOT NULL,
+  income_type VARCHAR(50) NOT NULL DEFAULT 'other',
+  description TEXT,
+  related_debt_id INT REFERENCES debts(id),
+  timestamp TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Create indexes for better performance
@@ -65,6 +78,8 @@ CREATE INDEX IF NOT EXISTS idx_debts_from_user ON debts(from_user);
 CREATE INDEX IF NOT EXISTS idx_debts_to_user ON debts(to_user);
 CREATE INDEX IF NOT EXISTS idx_receipt_items_receipt ON receipt_items(receipt_id);
 CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id);
+CREATE INDEX IF NOT EXISTS idx_incomes_user_timestamp ON incomes(user_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_incomes_timestamp ON incomes(timestamp DESC);
 
 -- Add constraints for data integrity
 DO $$ 
@@ -79,5 +94,9 @@ BEGIN
   
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'check_different_users') THEN
     ALTER TABLE debts ADD CONSTRAINT check_different_users CHECK (from_user != to_user);
+  END IF;
+  
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'check_income_amount_positive') THEN
+    ALTER TABLE incomes ADD CONSTRAINT check_income_amount_positive CHECK (amount_cents > 0);
   END IF;
 END $$;

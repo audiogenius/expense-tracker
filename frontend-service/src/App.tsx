@@ -31,10 +31,23 @@ declare global {
 
 type Expense = {
   id: number
+  user_id: number
   amount_cents: number
   category_id?: number | null
   timestamp: string
   is_shared: boolean
+  username?: string
+}
+
+type Income = {
+  id: number
+  user_id: number
+  amount_cents: number
+  income_type: string
+  description?: string
+  related_debt_id?: number | null
+  timestamp: string
+  username?: string
 }
 
 type Category = {
@@ -43,11 +56,22 @@ type Category = {
   aliases: string[]
 }
 
+type Balance = {
+  balance_cents: number
+  balance_rubles: number
+  total_incomes_cents: number
+  total_incomes_rubles: number
+  total_expenses_cents: number
+  total_expenses_rubles: number
+  period: string
+}
+
 const API_BASE = '/api'
 
 const App: React.FC = () => {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'))
   const [expenses, setExpenses] = useState<Expense[]>([])
+  const [incomes, setIncomes] = useState<Income[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [amount, setAmount] = useState<string>('')
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null)
@@ -55,10 +79,16 @@ const App: React.FC = () => {
     try { return JSON.parse(localStorage.getItem('profile') || 'null') } catch { return null }
   })
 
+  // Incomes state
+  const [incomeAmount, setIncomeAmount] = useState<string>('')
+  const [incomeType, setIncomeType] = useState<string>('salary')
+  const [incomeDescription, setIncomeDescription] = useState<string>('')
+
   // Filters
   const [filterCategory, setFilterCategory] = useState<number | null>(null)
   const [filterPeriod, setFilterPeriod] = useState<'all' | 'week' | 'month'>('all')
   const [totalExpenses, setTotalExpenses] = useState<{total_cents: number, total_rubles: number}>({total_cents: 0, total_rubles: 0})
+  const [balance, setBalance] = useState<Balance | null>(null)
 
   // We will dynamically inject the Telegram widget only when the login UI is shown
   const widgetRef = React.useRef<HTMLDivElement | null>(null)
@@ -141,8 +171,10 @@ const App: React.FC = () => {
   useEffect(() => {
     if (token) {
       fetchExpenses()
+      fetchIncomes()
       fetchCategories()
       fetchTotalExpenses(filterPeriod)
+      fetchBalance(filterPeriod)
     }
   }, [token, filterPeriod])
 
@@ -193,6 +225,26 @@ const App: React.FC = () => {
     }
   }
 
+  const fetchIncomes = async (t?: string) => {
+    try {
+      const headers = t ? { Authorization: `Bearer ${t}` } : (token ? { Authorization: `Bearer ${token}` } : undefined)
+      const res = await axios.get(`${API_BASE}/incomes`, { headers })
+      setIncomes(res.data || [])
+    } catch (err) {
+      console.error('fetchIncomes', err)
+    }
+  }
+
+  const fetchBalance = async (period: string) => {
+    try {
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined
+      const res = await axios.get(`${API_BASE}/balance?period=${period}`, { headers })
+      setBalance(res.data)
+    } catch (err) {
+      console.error('fetchBalance', err)
+    }
+  }
+
   const addExpense = async () => {
     const cents = Math.round(parseFloat(amount || '0') * 100)
     if (!token) { alert('not authenticated'); return }
@@ -207,9 +259,32 @@ const App: React.FC = () => {
       setSelectedCategory(null)
       fetchExpenses()
       fetchTotalExpenses(filterPeriod)
+      fetchBalance(filterPeriod)
     } catch (err) {
       console.error('addExpense', err)
       alert('Add failed')
+    }
+  }
+
+  const addIncome = async () => {
+    const cents = Math.round(parseFloat(incomeAmount || '0') * 100)
+    if (!token) { alert('not authenticated'); return }
+    if (cents <= 0) { alert('Сумма должна быть положительной'); return }
+    try {
+      await axios.post(`${API_BASE}/incomes`, { 
+        amount_cents: cents, 
+        income_type: incomeType,
+        description: incomeDescription || '',
+        timestamp: new Date().toISOString() 
+      }, { headers: { Authorization: `Bearer ${token}` } })
+      setIncomeAmount('')
+      setIncomeType('salary')
+      setIncomeDescription('')
+      fetchIncomes()
+      fetchBalance(filterPeriod)
+    } catch (err) {
+      console.error('addIncome', err)
+      alert('Ошибка добавления прихода')
     }
   }
 
@@ -218,7 +293,21 @@ const App: React.FC = () => {
     localStorage.removeItem('profile')
     setToken(null)
     setExpenses([])
+    setIncomes([])
     setProfile(null)
+    setBalance(null)
+  }
+
+  const getIncomeTypeName = (type: string) => {
+    const types: Record<string, string> = {
+      'salary': 'Зарплата',
+      'debt_return': 'Возврат долга',
+      'prize': 'Выигрыш',
+      'gift': 'Подарок',
+      'refund': 'Возврат средств',
+      'other': 'Прочее'
+    }
+    return types[type] || 'Неизвестно'
   }
 
   // Filter expenses
@@ -383,29 +472,47 @@ const App: React.FC = () => {
         <div className="main-grid">
           {/* LEFT COLUMN */}
           <div className="left-column">
-            {/* Total Summary */}
+            {/* Balance Card */}
             <div className="glass-card">
-              <h3>Общие расходы</h3>
-              <div className="stats-grid">
-                <div className="stat-card">
-                  <div className="stat-label">За выбранный период</div>
-                  <div className="stat-value">{totalExpenses.total_rubles?.toFixed(2) || '0.00'} ₽</div>
-                </div>
-                <div className="period-buttons">
-                  <button 
-                    className={filterPeriod === 'all' ? 'active' : 'secondary'}
-                    onClick={() => setFilterPeriod('all')}
-                  >Все</button>
-                  <button 
-                    className={filterPeriod === 'week' ? 'active' : 'secondary'}
-                    onClick={() => setFilterPeriod('week')}
-                  >Неделя</button>
-                  <button 
-                    className={filterPeriod === 'month' ? 'active' : 'secondary'}
-                    onClick={() => setFilterPeriod('month')}
-                  >Месяц</button>
-                </div>
+              <h3>Семейный бюджет</h3>
+              <div className="period-buttons" style={{ marginBottom: 20 }}>
+                <button 
+                  className={filterPeriod === 'all' ? 'active' : 'secondary'}
+                  onClick={() => setFilterPeriod('all')}
+                >Все</button>
+                <button 
+                  className={filterPeriod === 'week' ? 'active' : 'secondary'}
+                  onClick={() => setFilterPeriod('week')}
+                >Неделя</button>
+                <button 
+                  className={filterPeriod === 'month' ? 'active' : 'secondary'}
+                  onClick={() => setFilterPeriod('month')}
+                >Месяц</button>
               </div>
+              {balance && (
+                <div className="balance-grid">
+                  <div className="balance-card">
+                    <div className="balance-label">Баланс</div>
+                    <div className="balance-value" style={{ color: balance.balance_rubles >= 0 ? '#10b981' : '#ef4444' }}>
+                      {balance.balance_rubles.toFixed(2)} ₽
+                    </div>
+                  </div>
+                  <div className="balance-stats">
+                    <div className="balance-stat">
+                      <span className="balance-stat-label">Доходы:</span>
+                      <span className="balance-stat-value" style={{ color: '#10b981' }}>
+                        +{balance.total_incomes_rubles.toFixed(2)} ₽
+                      </span>
+                    </div>
+                    <div className="balance-stat">
+                      <span className="balance-stat-label">Расходы:</span>
+                      <span className="balance-stat-value" style={{ color: '#ef4444' }}>
+                        -{balance.total_expenses_rubles.toFixed(2)} ₽
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Charts */}
@@ -507,8 +614,61 @@ const App: React.FC = () => {
                     <option key={cat.id} value={cat.id}>{cat.name}</option>
                   ))}
                 </select>
-                <button onClick={addExpense}>Добавить</button>
+                <button onClick={addExpense}>Добавить расход</button>
               </div>
+            </div>
+
+            {/* Add Income */}
+            <div className="glass-card">
+              <h3>Добавить приход</h3>
+              <div className="controls">
+                <input 
+                  type="number" 
+                  placeholder="Сумма (руб.)" 
+                  value={incomeAmount} 
+                  onChange={(e) => setIncomeAmount(e.target.value)} 
+                />
+                <select 
+                  value={incomeType} 
+                  onChange={(e) => setIncomeType(e.target.value)}
+                >
+                  <option value="salary">Зарплата</option>
+                  <option value="debt_return">Возврат долга</option>
+                  <option value="prize">Выигрыш</option>
+                  <option value="gift">Подарок</option>
+                  <option value="refund">Возврат средств</option>
+                  <option value="other">Прочее</option>
+                </select>
+                <input 
+                  type="text" 
+                  placeholder="Описание (необязательно)" 
+                  value={incomeDescription} 
+                  onChange={(e) => setIncomeDescription(e.target.value)} 
+                />
+                <button onClick={addIncome} style={{ background: '#10b981' }}>Добавить приход</button>
+              </div>
+            </div>
+
+            {/* Incomes List */}
+            <div className="glass-card">
+              <h3>Последние приходы</h3>
+              <ul className="expenses">
+                {incomes.length === 0 ? (
+                  <li style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px 20px' }}>Нет приходов</li>
+                ) : (
+                  incomes.slice(0, 20).map(inc => (
+                    <li key={inc.id} className="expense-item">
+                      <div className="expense-info">
+                        <div className="expense-date">{new Date(inc.timestamp).toLocaleString('ru-RU')}</div>
+                        <div className="expense-category">{getIncomeTypeName(inc.income_type)}</div>
+                        {inc.description && <div className="income-description" style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: 4 }}>{inc.description}</div>}
+                        {inc.username && <div className="income-user" style={{ fontSize: '12px', color: 'var(--accent)', marginTop: 2 }}>@{inc.username}</div>}
+                      </div>
+                      <div className="expense-amount" style={{ color: '#10b981' }}>+{(inc.amount_cents/100).toFixed(2)} ₽</div>
+                    </li>
+                  ))
+                )}
+              </ul>
             </div>
           </div>
         </div>
