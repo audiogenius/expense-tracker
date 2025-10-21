@@ -1,0 +1,85 @@
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .main-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .left-column,
+  .right-column {
+    width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  :root {
+    --spacing: 16px;
+    --border-radius: 20px;
+  }
+
+  body {
+    padding: 12px;
+  }
+
+  .header-bar {
+    padding: 16px;
+  }
+
+  .glass-card {
+    padding: 16px;
+  }
+
+  .title {
+    font-size: 20px;
+  }
+
+  .controls {
+    flex-direction: column;
+  }
+
+  input[type=text],
+  input[type=number],
+  select,
+  button {
+    width: 100%;
+  }
+
+  .stat-value {
+    font-size: 32px;
+  }
+
+  .expense-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .expense-amount {
+    align-self: flex-end;
+  }
+
+  .expenses {
+    max-height: 400px;
+  }
+}
+
+@media (max-width: 480px) {
+  body {
+    padding: 8px;
+  }
+
+  .header-bar {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .header-left {
+    flex-direction: column;
+    width: 100%;
+    gap: 12px;
+  }
+
+  .title {
+    font-size: 18px;
+  }
+}
+

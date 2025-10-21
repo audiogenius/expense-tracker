@@ -1,0 +1,21 @@
+/* Charts */
+.charts-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing);
+  width: 100%;
+}
+
+.chart-container {
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-container h3 {
+  margin-bottom: var(--spacing);
+  font-size: 16px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
