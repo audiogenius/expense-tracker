@@ -380,132 +380,138 @@ const App: React.FC = () => {
       )}
 
       {token && (
-        <>
-          {/* Total Summary */}
-          <div className="glass-card">
-            <h3 style={{ margin: 0, marginBottom: 16, color: '#ffffff' }}>Общие расходы</h3>
-            <div className="stats-grid">
-              <div className="stat-card">
-                <div className="stat-label">За выбранный период</div>
-                <div className="stat-value">{totalExpenses.total_rubles?.toFixed(2) || '0.00'} ₽</div>
-              </div>
-              <div className="period-buttons">
-                <button 
-                  className={filterPeriod === 'all' ? 'active' : 'secondary'}
-                  onClick={() => setFilterPeriod('all')}
-                >Все</button>
-                <button 
-                  className={filterPeriod === 'week' ? 'active' : 'secondary'}
-                  onClick={() => setFilterPeriod('week')}
-                >Неделя</button>
-                <button 
-                  className={filterPeriod === 'month' ? 'active' : 'secondary'}
-                  onClick={() => setFilterPeriod('month')}
-                >Месяц</button>
+        <div className="main-grid">
+          {/* LEFT COLUMN */}
+          <div className="left-column">
+            {/* Total Summary */}
+            <div className="glass-card">
+              <h3>Общие расходы</h3>
+              <div className="stats-grid">
+                <div className="stat-card">
+                  <div className="stat-label">За выбранный период</div>
+                  <div className="stat-value">{totalExpenses.total_rubles?.toFixed(2) || '0.00'} ₽</div>
+                </div>
+                <div className="period-buttons">
+                  <button 
+                    className={filterPeriod === 'all' ? 'active' : 'secondary'}
+                    onClick={() => setFilterPeriod('all')}
+                  >Все</button>
+                  <button 
+                    className={filterPeriod === 'week' ? 'active' : 'secondary'}
+                    onClick={() => setFilterPeriod('week')}
+                  >Неделя</button>
+                  <button 
+                    className={filterPeriod === 'month' ? 'active' : 'secondary'}
+                    onClick={() => setFilterPeriod('month')}
+                  >Месяц</button>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Add Expense */}
-          <div className="glass-card">
-            <h3 style={{ margin: 0, marginBottom: 16, color: '#ffffff' }}>Добавить расход</h3>
-            <div className="controls">
-              <input 
-                type="number" 
-                placeholder="Сумма (руб.)" 
-                value={amount} 
-                onChange={(e) => setAmount(e.target.value)} 
-              />
-              <select 
-                value={selectedCategory || ''} 
-                onChange={(e) => setSelectedCategory(e.target.value ? parseInt(e.target.value) : null)}
-              >
-                <option value="">Без категории</option>
-                {categories.map(cat => (
-                  <option key={cat.id} value={cat.id}>{cat.name}</option>
-                ))}
-              </select>
-              <button onClick={addExpense}>Добавить</button>
-            </div>
-          </div>
-
-          {/* Charts */}
-          {filteredExpenses.length > 0 && (
-            <div className="charts-grid">
-              <div className="glass-card chart-container">
-                <h3>Расходы за последние 7 дней</h3>
-                <Line data={prepareLineChartData()} options={{ 
-                  responsive: true, 
-                  maintainAspectRatio: true,
-                  plugins: {
-                    legend: {
-                      labels: {
-                        color: '#ffffff',
-                        font: { size: 14, weight: 'bold' }
+            {/* Charts */}
+            {filteredExpenses.length > 0 && (
+              <div className="charts-grid">
+                <div className="glass-card chart-container">
+                  <h3>Расходы за последние 7 дней</h3>
+                  <Line data={prepareLineChartData()} options={{ 
+                    responsive: true, 
+                    maintainAspectRatio: true,
+                    plugins: {
+                      legend: {
+                        labels: {
+                          color: '#ffffff',
+                          font: { size: 14, weight: 'bold' }
+                        }
                       }
-                    }
-                  },
-                  scales: {
-                    x: {
-                      ticks: { color: '#ffffff' },
-                      grid: { color: 'rgba(255, 255, 255, 0.1)' }
                     },
-                    y: {
-                      ticks: { color: '#ffffff' },
-                      grid: { color: 'rgba(255, 255, 255, 0.1)' }
-                    }
-                  }
-                }} />
-              </div>
-              <div className="glass-card chart-container">
-                <h3>По категориям</h3>
-                <Pie data={preparePieChartData()} options={{ 
-                  responsive: true, 
-                  maintainAspectRatio: true,
-                  plugins: {
-                    legend: {
-                      labels: {
-                        color: '#ffffff',
-                        font: { size: 14, weight: 'bold' }
+                    scales: {
+                      x: {
+                        ticks: { color: '#ffffff' },
+                        grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                      },
+                      y: {
+                        ticks: { color: '#ffffff' },
+                        grid: { color: 'rgba(255, 255, 255, 0.1)' }
                       }
                     }
-                  }
-                }} />
+                  }} />
+                </div>
+                <div className="glass-card chart-container">
+                  <h3>Категории расходов</h3>
+                  <Pie data={preparePieChartData()} options={{ 
+                    responsive: true, 
+                    maintainAspectRatio: true,
+                    plugins: {
+                      legend: {
+                        labels: {
+                          color: '#ffffff',
+                          font: { size: 14, weight: 'bold' }
+                        }
+                      }
+                    }
+                  }} />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT COLUMN */}
+          <div className="right-column">
+            {/* Expenses List */}
+            <div className="glass-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: '12px' }}>
+                <h3 style={{ margin: 0 }}>Последние расходы</h3>
+                <select 
+                  value={filterCategory || ''} 
+                  onChange={(e) => setFilterCategory(e.target.value ? parseInt(e.target.value) : null)}
+                >
+                  <option value="">Все категории</option>
+                  {categories.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
+              </div>
+              <ul className="expenses">
+                {filteredExpenses.length === 0 ? (
+                  <li style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px 20px' }}>Нет расходов</li>
+                ) : (
+                  filteredExpenses.map(e => (
+                    <li key={e.id} className="expense-item">
+                      <div className="expense-info">
+                        <div className="expense-date">{new Date(e.timestamp).toLocaleString('ru-RU')}</div>
+                        <div className="expense-category">{getCategoryName(e.category_id)}</div>
+                      </div>
+                      <div className="expense-amount">{(e.amount_cents/100).toFixed(2)} ₽</div>
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
+
+            {/* Add Expense */}
+            <div className="glass-card">
+              <h3>Добавить расход</h3>
+              <div className="controls">
+                <input 
+                  type="number" 
+                  placeholder="Сумма (руб.)" 
+                  value={amount} 
+                  onChange={(e) => setAmount(e.target.value)} 
+                />
+                <select 
+                  value={selectedCategory || ''} 
+                  onChange={(e) => setSelectedCategory(e.target.value ? parseInt(e.target.value) : null)}
+                >
+                  <option value="">Без категории</option>
+                  {categories.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
+                <button onClick={addExpense}>Добавить</button>
               </div>
             </div>
-          )}
-
-          {/* Expenses List */}
-          <div className="glass-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: '12px' }}>
-              <h3 style={{ margin: 0, color: '#ffffff' }}>Последние расходы</h3>
-              <select 
-                value={filterCategory || ''} 
-                onChange={(e) => setFilterCategory(e.target.value ? parseInt(e.target.value) : null)}
-              >
-                <option value="">Все категории</option>
-                {categories.map(cat => (
-                  <option key={cat.id} value={cat.id}>{cat.name}</option>
-                ))}
-              </select>
-            </div>
-            <ul className="expenses">
-              {filteredExpenses.length === 0 ? (
-                <li style={{ textAlign: 'center', color: 'var(--muted)' }}>Нет расходов</li>
-              ) : (
-                filteredExpenses.map(e => (
-                  <li key={e.id} className="expense-item">
-                    <div className="expense-info">
-                      <div className="expense-date">{new Date(e.timestamp).toLocaleString('ru-RU')}</div>
-                      <div className="expense-category">{getCategoryName(e.category_id)}</div>
-                    </div>
-                    <div className="expense-amount">{(e.amount_cents/100).toFixed(2)} ₽</div>
-                  </li>
-                ))
-              )}
-            </ul>
           </div>
-        </>
+        </div>
       )}
     </div>
   )
