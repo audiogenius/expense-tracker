@@ -1,0 +1,13 @@
+/* Modern Expense Tracker - Modular Styles */
+
+/* Import CSS Modules */
+@import './styles/variables.css';
+@import './styles/base.css';
+@import './styles/modules/components.css';
+@import './styles/modules/balance.css';
+@import './styles/modules/expenses.css';
+@import './styles/modules/charts.css';
+@import './styles/modules/transactions.css';
+@import './styles/modules/autocomplete.css';
+@import './styles/modules/performance.css';
+@import './styles/modules/responsive.css';
