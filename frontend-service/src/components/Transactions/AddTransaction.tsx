@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { addExpense, fetchCategories, fetchSubcategories } from '../../api'
+import { addExpense, fetchCategories, fetchSubcategories, fetchCategorySuggestions } from '../../api'
 import { CategoryAutocomplete } from '../Suggestions/CategoryAutocomplete'
 import type { Category, Subcategory, CategorySuggestion } from '../../types'
 import { formatCurrency } from '../../utils/helpers'
@@ -17,6 +17,9 @@ export const AddTransaction: React.FC<AddTransactionProps> = ({ token, onTransac
   const [subcategories, setSubcategories] = useState<Subcategory[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(false)
+  const [suggestions, setSuggestions] = useState<CategorySuggestion[]>([])
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false)
+  const [showSuggestions, setShowSuggestions] = useState(false)
 
   useEffect(() => {
     loadCategories()

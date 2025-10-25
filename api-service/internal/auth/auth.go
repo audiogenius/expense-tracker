@@ -28,11 +28,18 @@ type Auth struct {
 	JWTSecret string
 	BotToken  string
 	Whitelist []string
+	validator *Validator
 }
 
 func NewAuth(db *pgxpool.Pool) *Auth {
-	wl := strings.Split(os.Getenv("TELEGRAM_WHITELIST"), ",")
-	return &Auth{DB: db, JWTSecret: os.Getenv("JWT_SECRET"), BotToken: os.Getenv("TELEGRAM_BOT_TOKEN"), Whitelist: wl}
+	validator := NewValidator()
+	return &Auth{
+		DB:        db,
+		JWTSecret: os.Getenv("JWT_SECRET"),
+		BotToken:  os.Getenv("TELEGRAM_BOT_TOKEN"),
+		Whitelist: validator.GetWhitelist(),
+		validator: validator,
+	}
 }
 
 // VerifyTelegramAuth implements Telegram login verification: compute HMAC-SHA256 over

@@ -24,10 +24,6 @@ import { Header } from './components/Header/Header'
 import { BalanceCard } from './components/Balance/BalanceCard'
 import { ExpenseLineChart } from './components/Charts/ExpenseLineChart'
 import { CategoryPieChart } from './components/Charts/CategoryPieChart'
-import { ExpensesList } from './components/Expenses/ExpensesList'
-import { AddExpense } from './components/Expenses/AddExpense'
-import { IncomesList } from './components/Incomes/IncomesList'
-import { AddIncome } from './components/Incomes/AddIncome'
 import { RecentTransactions } from './components/Transactions/RecentTransactions'
 import { AddTransaction } from './components/Transactions/AddTransaction'
 import { TransactionsPage } from './components/Transactions/TransactionsPage'
@@ -105,43 +101,6 @@ const App: React.FC = () => {
     setBalance(null)
   }
 
-  const handleAddExpense = async (amount: string, categoryId: number | null) => {
-    if (!token) {
-      alert('not authenticated')
-      return
-    }
-    const cents = Math.round(parseFloat(amount || '0') * 100)
-    if (cents <= 0) {
-      alert('Amount must be positive')
-      return
-    }
-    try {
-      await api.addExpense(token, cents, categoryId)
-      await fetchData()
-    } catch (err) {
-      console.error('addExpense error', err)
-      alert('Add expense failed')
-    }
-  }
-
-  const handleAddIncome = async (amount: string, type: string, description: string) => {
-    if (!token) {
-      alert('not authenticated')
-      return
-    }
-    const cents = Math.round(parseFloat(amount || '0') * 100)
-    if (cents <= 0) {
-      alert('Сумма должна быть положительной')
-      return
-    }
-    try {
-      await api.addIncome(token, cents, type, description)
-      await fetchData()
-    } catch (err) {
-      console.error('addIncome error', err)
-      alert('Ошибка добавления прихода')
-    }
-  }
 
   const handleTransactionAdded = async () => {
     await fetchData()
@@ -228,15 +187,6 @@ const App: React.FC = () => {
         <div className="right-column">
           <RecentTransactions token={token!} onViewAll={handleViewAllTransactions} />
           <AddTransaction token={token!} onTransactionAdded={handleTransactionAdded} />
-          <ExpensesList
-            expenses={filteredExpenses}
-            categories={categories}
-            filterCategory={filterCategory}
-            onFilterChange={setFilterCategory}
-          />
-          <AddExpense categories={categories} onAdd={handleAddExpense} />
-          <AddIncome onAdd={handleAddIncome} />
-          <IncomesList incomes={incomes} />
         </div>
       </div>
     </div>

@@ -21,14 +21,17 @@ import (
 // Handlers holds dependencies for HTTP handlers
 type Handlers struct {
 	Auth             *auth.Auth
+	AuthHandler      *AuthHandler
 	DB               *pgxpool.Pool
 	Cache            *cache.MemoryCache
 	SuggestionsCache map[int]suggestionsCache // User ID -> Cache
 }
 
 func NewHandlers(a *auth.Auth, db *pgxpool.Pool) *Handlers {
+	authHandler := NewAuthHandler(a, db)
 	return &Handlers{
 		Auth:             a,
+		AuthHandler:      authHandler,
 		DB:               db,
 		Cache:            cache.NewMemoryCache(),
 		SuggestionsCache: make(map[int]suggestionsCache),
@@ -96,64 +99,9 @@ type suggestionsCache struct {
 	UserID    int                  `json:"user_id"`
 }
 
-// Login accepts a Telegram widget payload (map[string]string), verifies it and returns a JWT
+// Login delegates to AuthHandler for better separation of concerns
 func (h *Handlers) Login(w http.ResponseWriter, r *http.Request) {
-	log.Info().Msg("Login handler called")
-	var payload map[string]string
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error().Err(err).Msg("failed to decode JSON payload")
-		http.Error(w, "bad request", http.StatusBadRequest)
-		return
-	}
-	log.Info().Interface("payload", payload).Msg("decoded payload")
-	// whitelist check
-	tg := payload["id"]
-	log.Info().Str("telegram_id", tg).Strs("whitelist", h.Auth.Whitelist).Msg("checking whitelist")
-	allowed := false
-	for _, v := range h.Auth.Whitelist {
-		if v == "*" || v == tg {
-			allowed = true
-			break
-		}
-	}
-	if !allowed {
-		log.Error().Str("telegram_id", tg).Strs("whitelist", h.Auth.Whitelist).Msg("user not in whitelist")
-		http.Error(w, "forbidden", http.StatusForbidden)
-		return
-	}
-	log.Info().Str("telegram_id", tg).Msg("user authorized")
-	// For development/testing, skip Telegram auth verification if no hash is provided
-	if hash, hasHash := payload["hash"]; hasHash && hash != "" {
-		if !h.Auth.VerifyTelegramAuth(payload) {
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
-	}
-	// ensure user exists (upsert)
-	var id int64
-	var telegramID int64
-	fmt.Sscan(payload["id"], &telegramID)
-	log.Info().Int64("telegram_id", telegramID).Str("username", payload["username"]).Msg("creating/updating user")
-	if err := h.DB.QueryRow(r.Context(), "INSERT INTO users (telegram_id, username) VALUES ($1,$2) ON CONFLICT (telegram_id) DO UPDATE SET username=EXCLUDED.username RETURNING id", telegramID, payload["username"]).Scan(&id); err != nil {
-		log.Error().Err(err).Msg("create user")
-		http.Error(w, "internal", http.StatusInternalServerError)
-		return
-	}
-	log.Info().Int64("user_id", id).Msg("user created/updated")
-	token, err := h.Auth.CreateJWT(telegramID)
-	if err != nil {
-		log.Error().Err(err).Msg("create jwt")
-		http.Error(w, "internal", http.StatusInternalServerError)
-		return
-	}
-	log.Info().Str("token", token[:20]+"...").Msg("jwt token created")
-	w.Header().Set("Content-Type", "application/json")
-	// Return token and basic profile info (id and username) for frontend convenience
-	resp := map[string]string{"token": token, "username": payload["username"], "id": payload["id"]}
-	if p, ok := payload["photo_url"]; ok && p != "" {
-		resp["photo_url"] = p
-	}
-	_ = json.NewEncoder(w).Encode(resp)
+	h.AuthHandler.Login(w, r)
 }
 
 // AddExpense creates an expense for the authenticated user

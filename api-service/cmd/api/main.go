@@ -14,6 +14,7 @@ import (
 
 	"github.com/expense-tracker/api-service/internal/auth"
 	"github.com/expense-tracker/api-service/internal/handlers"
+	"github.com/expense-tracker/api-service/internal/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
@@ -36,7 +37,8 @@ func main() {
 	h := handlers.NewHandlers(a, pool)
 
 	r := chi.NewRouter()
-	// Global request logging
+	// Global middleware
+	r.Use(middleware.CORS)
 	r.Use(a.RequestLogger)
 
 	// Health check endpoint

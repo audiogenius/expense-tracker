@@ -8,6 +8,7 @@
 @import './styles/modules/expenses.css';
 @import './styles/modules/charts.css';
 @import './styles/modules/transactions.css';
+@import './styles/modules/add-transaction.css';
 @import './styles/modules/autocomplete.css';
 @import './styles/modules/performance.css';
 @import './styles/modules/responsive.css';
