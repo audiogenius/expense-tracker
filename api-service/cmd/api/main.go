@@ -46,9 +46,6 @@ func main() {
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok", "service": "api"})
 	})
 
-	// Public login endpoint
-	r.Post("/api/login", h.Login)
-
 	// Public categories endpoint
 	r.Get("/categories", h.GetCategories)
 	r.Post("/categories/detect", h.DetectCategory)
@@ -88,6 +85,12 @@ func main() {
 		// Debts and balance
 		r.Get("/debts", h.GetDebts)
 		r.Get("/balance", h.GetBalance)
+	})
+
+	// Public login endpoint (must be after protected routes to avoid conflicts)
+	r.Post("/api/login", func(w http.ResponseWriter, r *http.Request) {
+		log.Info().Msg("Route /api/login matched - calling Login handler")
+		h.Login(w, r)
 	})
 
 	srv := &http.Server{
