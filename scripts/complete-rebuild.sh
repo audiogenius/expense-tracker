@@ -1,12 +1,18 @@
 #!/bin/bash
 
-echo "=== ОТКЛЮЧЕНИЕ ПРОВЕРКИ TELEGRAM (ВРЕМЕННО) ==="
+echo "=== ПОЛНАЯ ПЕРЕСБОРКА ПРОЕКТА ==="
 
-echo "1. Остановка API:"
-docker-compose stop api
+echo "1. Полная остановка всех сервисов:"
+docker-compose down
 
-echo -e "\n2. Создание validator.go без проверки:"
-docker-compose exec api sh -c 'cat > /app/internal/auth/validator.go << "EOF"
+echo -e "\n2. Удаление всех образов:"
+docker rmi expense-tracker-api expense-tracker-frontend expense-tracker-proxy || true
+
+echo -e "\n3. Очистка Docker кэша:"
+docker system prune -f
+
+echo -e "\n4. Создание правильного validator.go:"
+cat > api-service/internal/auth/validator.go << 'EOF'
 package auth
 
 import (
@@ -39,18 +45,24 @@ func IsUserInWhitelist(telegramID int64, whitelist []string) bool {
 	}
 	return false
 }
-EOF'
+EOF
 
-echo -e "\n3. Пересборка и запуск API:"
-docker-compose up --build -d api
+echo -e "\n5. Полная пересборка без кэша:"
+docker-compose build --no-cache
 
-echo -e "\n4. Ожидание запуска (5 секунд):"
-sleep 5
+echo -e "\n6. Запуск всех сервисов:"
+docker-compose up -d
 
-echo -e "\n5. Тест без проверки Telegram:"
+echo -e "\n7. Ожидание запуска (10 секунд):"
+sleep 10
+
+echo -e "\n8. Проверка статуса:"
+docker-compose ps
+
+echo -e "\n9. Тест авторизации:"
 curl -X POST http://localhost/api/login \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "id=260144148&first_name=Test&last_name=User&username=gmmmpls&photo_url=&auth_date=1732560000&hash=test_hash" \
   -v
 
-echo -e "\n=== ОТКЛЮЧЕНИЕ ЗАВЕРШЕНО ==="
+echo -e "\n=== ПЕРЕСБОРКА ЗАВЕРШЕНА ==="
