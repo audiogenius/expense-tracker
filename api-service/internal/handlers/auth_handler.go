@@ -127,9 +127,9 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	response := map[string]string{
-		"token":    token,
-		"username": req.Username,
-		"id":       req.ID,
+		"token":     token,
+		"username":  req.Username,
+		"id":        req.ID,
 		"photo_url": req.PhotoURL,
 	}
 	json.NewEncoder(w).Encode(response)
