@@ -94,7 +94,7 @@ func main() {
 		log.Info().Msg("Route /api/login matched - calling Login handler")
 		h.Login(w, r)
 	})
-	
+
 	// Also handle /login for direct access
 	r.Post("/login", func(w http.ResponseWriter, r *http.Request) {
 		log.Info().Msg("Route /login matched - calling Login handler")
