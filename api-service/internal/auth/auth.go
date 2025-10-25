@@ -123,6 +123,25 @@ func (a *Auth) RequestLogger(next http.Handler) http.Handler {
 			log.Info().Str("path", r.URL.Path).Msg("routing to Login handler")
 		}
 
-		next.ServeHTTP(w, r)
+		// Create a custom response writer to capture status code
+		wrapped := &responseWriter{ResponseWriter: w, statusCode: 200}
+
+		next.ServeHTTP(wrapped, r)
+
+		// Log the response status
+		if r.URL.Path == "/api/login" {
+			log.Info().Int("status", wrapped.statusCode).Str("path", r.URL.Path).Msg("Login response")
+		}
 	})
+}
+
+// responseWriter wraps http.ResponseWriter to capture status code
+type responseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.statusCode = code
+	rw.ResponseWriter.WriteHeader(code)
 }

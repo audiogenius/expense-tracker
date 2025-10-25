@@ -101,9 +101,11 @@ func (h *Handlers) Login(w http.ResponseWriter, r *http.Request) {
 	log.Info().Msg("Login handler called")
 	var payload map[string]string
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		log.Error().Err(err).Msg("failed to decode JSON payload")
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
+	log.Info().Interface("payload", payload).Msg("decoded payload")
 	// whitelist check
 	tg := payload["id"]
 	log.Info().Str("telegram_id", tg).Strs("whitelist", h.Auth.Whitelist).Msg("checking whitelist")
