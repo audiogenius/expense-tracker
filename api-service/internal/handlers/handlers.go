@@ -105,6 +105,7 @@ func (h *Handlers) Login(w http.ResponseWriter, r *http.Request) {
 	}
 	// whitelist check
 	tg := payload["id"]
+	log.Info().Str("telegram_id", tg).Strs("whitelist", h.Auth.Whitelist).Msg("checking whitelist")
 	allowed := false
 	for _, v := range h.Auth.Whitelist {
 		if v == "*" || v == tg {
@@ -113,9 +114,11 @@ func (h *Handlers) Login(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if !allowed {
+		log.Error().Str("telegram_id", tg).Strs("whitelist", h.Auth.Whitelist).Msg("user not in whitelist")
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
+	log.Info().Str("telegram_id", tg).Msg("user authorized")
 	// For development/testing, skip Telegram auth verification if no hash is provided
 	if hash, hasHash := payload["hash"]; hasHash && hash != "" {
 		if !h.Auth.VerifyTelegramAuth(payload) {
@@ -127,17 +130,20 @@ func (h *Handlers) Login(w http.ResponseWriter, r *http.Request) {
 	var id int64
 	var telegramID int64
 	fmt.Sscan(payload["id"], &telegramID)
+	log.Info().Int64("telegram_id", telegramID).Str("username", payload["username"]).Msg("creating/updating user")
 	if err := h.DB.QueryRow(r.Context(), "INSERT INTO users (telegram_id, username) VALUES ($1,$2) ON CONFLICT (telegram_id) DO UPDATE SET username=EXCLUDED.username RETURNING id", telegramID, payload["username"]).Scan(&id); err != nil {
 		log.Error().Err(err).Msg("create user")
 		http.Error(w, "internal", http.StatusInternalServerError)
 		return
 	}
+	log.Info().Int64("user_id", id).Msg("user created/updated")
 	token, err := h.Auth.CreateJWT(telegramID)
 	if err != nil {
 		log.Error().Err(err).Msg("create jwt")
 		http.Error(w, "internal", http.StatusInternalServerError)
 		return
 	}
+	log.Info().Str("token", token[:20]+"...").Msg("jwt token created")
 	w.Header().Set("Content-Type", "application/json")
 	// Return token and basic profile info (id and username) for frontend convenience
 	resp := map[string]string{"token": token, "username": payload["username"], "id": payload["id"]}
