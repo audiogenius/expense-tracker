@@ -72,8 +72,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 			Str("telegram_id", req.ID).
 			Strs("whitelist", validator.GetWhitelist()).
 			Msg("user not in whitelist")
-		auth.WriteErrorResponse(w, http.StatusForbidden,
-			auth.NewAuthError(auth.ErrUserNotWhitelisted, "forbidden", "User not authorized"))
+		auth.WriteSimpleError(w, http.StatusForbidden, "User not authorized")
 		return
 	}
 
@@ -90,8 +89,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 		if !h.auth.VerifyTelegramAuth(authData) {
 			log.Error().Str("telegram_id", req.ID).Msg("telegram auth verification failed")
-			auth.WriteErrorResponse(w, http.StatusForbidden,
-				auth.NewAuthError(auth.ErrInvalidTelegramAuth, "forbidden", "Invalid Telegram authentication"))
+			auth.WriteSimpleError(w, http.StatusForbidden, "Invalid Telegram authentication")
 			return
 		}
 	}
@@ -126,7 +124,15 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		Msg("user authenticated successfully")
 
 	// Return success response
-	auth.WriteLoginResponse(w, token, req.Username, req.ID, req.PhotoURL)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	response := map[string]string{
+		"token":    token,
+		"username": req.Username,
+		"id":       req.ID,
+		"photo_url": req.PhotoURL,
+	}
+	json.NewEncoder(w).Encode(response)
 }
 
 // createOrUpdateUser creates a new user or updates existing one
