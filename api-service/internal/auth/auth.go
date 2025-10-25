@@ -104,6 +104,15 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 	})
 }
 
+// GetUserIDFromRequest extracts user ID from request context
+func (a *Auth) GetUserIDFromRequest(r *http.Request) (int64, error) {
+	userID, ok := r.Context().Value(UserIDKey).(int64)
+	if !ok {
+		return 0, fmt.Errorf("user ID not found in context")
+	}
+	return userID, nil
+}
+
 // RequestLogger logs basic request info
 func (a *Auth) RequestLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

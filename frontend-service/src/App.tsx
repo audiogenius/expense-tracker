@@ -13,7 +13,7 @@ import {
 } from 'chart.js'
 
 // Types
-import type { Expense, Income, Category, Balance, Profile, Period } from './types'
+import type { Expense, Income, Category, Balance, Profile, Period, CustomPeriod, ChartType, ChartPeriod } from './types'
 
 // API
 import * as api from './api'
@@ -28,6 +28,9 @@ import { ExpensesList } from './components/Expenses/ExpensesList'
 import { AddExpense } from './components/Expenses/AddExpense'
 import { IncomesList } from './components/Incomes/IncomesList'
 import { AddIncome } from './components/Incomes/AddIncome'
+import { RecentTransactions } from './components/Transactions/RecentTransactions'
+import { AddTransaction } from './components/Transactions/AddTransaction'
+import { TransactionsPage } from './components/Transactions/TransactionsPage'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement)
 
@@ -48,6 +51,12 @@ const App: React.FC = () => {
   // Filters
   const [filterCategory, setFilterCategory] = useState<number | null>(null)
   const [filterPeriod, setFilterPeriod] = useState<Period>('all')
+  const [customPeriod, setCustomPeriod] = useState<CustomPeriod | undefined>(undefined)
+  const [currentPage, setCurrentPage] = useState<'dashboard' | 'transactions'>('dashboard')
+  
+  // Chart settings
+  const [chartType, setChartType] = useState<ChartType>('expenses')
+  const [chartPeriod, setChartPeriod] = useState<ChartPeriod>('days')
 
   // Fetch data on mount and period change
   useEffect(() => {
@@ -134,6 +143,18 @@ const App: React.FC = () => {
     }
   }
 
+  const handleTransactionAdded = async () => {
+    await fetchData()
+  }
+
+  const handleViewAllTransactions = () => {
+    setCurrentPage('transactions')
+  }
+
+  const handleBackToDashboard = () => {
+    setCurrentPage('dashboard')
+  }
+
   // Filter expenses
   const filteredExpenses = expenses.filter((e) => {
     if (filterCategory !== null && e.category_id !== filterCategory) return false
@@ -158,6 +179,20 @@ const App: React.FC = () => {
     )
   }
 
+  if (currentPage === 'transactions') {
+    return (
+      <div className="app-center">
+        <Header profile={profile} onLogout={handleLogout} />
+        <div className="page-header">
+          <button onClick={handleBackToDashboard} className="back-btn">
+            ← Назад к дашборду
+          </button>
+        </div>
+        <TransactionsPage token={token!} />
+      </div>
+    )
+  }
+
   return (
     <div className="app-center">
       <Header profile={profile} onLogout={handleLogout} />
@@ -165,12 +200,25 @@ const App: React.FC = () => {
       <div className="main-grid">
         {/* LEFT COLUMN */}
         <div className="left-column">
-          <BalanceCard balance={balance} filterPeriod={filterPeriod} onPeriodChange={setFilterPeriod} />
+          <BalanceCard 
+            balance={balance} 
+            filterPeriod={filterPeriod} 
+            customPeriod={customPeriod}
+            onPeriodChange={setFilterPeriod}
+            onCustomPeriodChange={setCustomPeriod}
+          />
 
           {/* Charts */}
           {filteredExpenses.length > 0 && (
             <div className="charts-grid">
-              <ExpenseLineChart expenses={filteredExpenses} />
+              <ExpenseLineChart 
+                expenses={filteredExpenses} 
+                incomes={incomes}
+                chartType={chartType}
+                chartPeriod={chartPeriod}
+                onChartTypeChange={setChartType}
+                onChartPeriodChange={setChartPeriod}
+              />
               <CategoryPieChart expenses={filteredExpenses} categories={categories} />
             </div>
           )}
@@ -178,6 +226,8 @@ const App: React.FC = () => {
 
         {/* RIGHT COLUMN */}
         <div className="right-column">
+          <RecentTransactions token={token!} onViewAll={handleViewAllTransactions} />
+          <AddTransaction token={token!} onTransactionAdded={handleTransactionAdded} />
           <ExpensesList
             expenses={filteredExpenses}
             categories={categories}

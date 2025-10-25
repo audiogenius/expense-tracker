@@ -1,5 +1,16 @@
 import axios from 'axios'
-import type { Expense, Income, Category, Balance } from '../types'
+import { apiCache, CACHE_TTL } from '../utils/apiCache'
+import type { 
+  Expense, 
+  Income, 
+  Category, 
+  Balance, 
+  Subcategory, 
+  Transaction, 
+  TransactionResponse, 
+  TransactionFilters, 
+  CategorySuggestion 
+} from '../types'
 
 const API_BASE = '/api'
 
@@ -18,8 +29,21 @@ export const loginWithTelegram = async (authData: Record<string, any>) => {
 
 // Categories
 export const fetchCategories = async (): Promise<Category[]> => {
-  const res = await axios.get(`${API_BASE}/categories`)
-  return res.data || []
+  const url = `${API_BASE}/categories`
+  
+  // Check cache first
+  const cached = apiCache.get(url)
+  if (cached) {
+    return cached
+  }
+  
+  const res = await axios.get(url)
+  const data = res.data || []
+  
+  // Cache the result
+  apiCache.set(url, data, CACHE_TTL.CATEGORIES)
+  
+  return data
 }
 
 // Expenses
@@ -37,10 +61,18 @@ export const fetchTotalExpenses = async (token: string, period: string) => {
   return res.data
 }
 
-export const addExpense = async (token: string, amountCents: number, categoryId: number | null) => {
+export const addExpense = async (
+  token: string, 
+  amountCents: number, 
+  categoryId: number | null, 
+  subcategoryId?: number | null,
+  operationType: 'expense' | 'income' = 'expense'
+) => {
   await axios.post(`${API_BASE}/expenses`, {
     amount_cents: amountCents,
     category_id: categoryId,
+    subcategory_id: subcategoryId,
+    operation_type: operationType,
     timestamp: new Date().toISOString()
   }, {
     headers: { Authorization: `Bearer ${token}` }
@@ -77,5 +109,105 @@ export const fetchBalance = async (token: string, period: string): Promise<Balan
     headers: { Authorization: `Bearer ${token}` }
   })
   return res.data
+}
+
+// Subcategories
+export const fetchSubcategories = async (token: string, categoryId?: number): Promise<Subcategory[]> => {
+  const url = categoryId 
+    ? `${API_BASE}/subcategories?category_id=${categoryId}`
+    : `${API_BASE}/subcategories`
+  const res = await axios.get(url, {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+  return res.data || []
+}
+
+export const createSubcategory = async (
+  token: string, 
+  name: string, 
+  categoryId: number, 
+  aliases: string[] = []
+) => {
+  const res = await axios.post(`${API_BASE}/subcategories`, {
+    name,
+    category_id: categoryId,
+    aliases
+  }, {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+  return res.data
+}
+
+export const updateSubcategory = async (
+  token: string,
+  id: number,
+  name: string,
+  categoryId: number,
+  aliases: string[] = []
+) => {
+  const res = await axios.put(`${API_BASE}/subcategories/${id}`, {
+    name,
+    category_id: categoryId,
+    aliases
+  }, {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+  return res.data
+}
+
+export const deleteSubcategory = async (token: string, id: number) => {
+  await axios.delete(`${API_BASE}/subcategories/${id}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+}
+
+// Transactions
+export const fetchTransactions = async (
+  token: string, 
+  filters: TransactionFilters = {}
+): Promise<TransactionResponse> => {
+  const params = new URLSearchParams()
+  
+  if (filters.operation_type) params.append('operation_type', filters.operation_type)
+  if (filters.category_id) params.append('category_id', filters.category_id.toString())
+  if (filters.subcategory_id) params.append('subcategory_id', filters.subcategory_id.toString())
+  if (filters.start_date) params.append('start_date', filters.start_date)
+  if (filters.end_date) params.append('end_date', filters.end_date)
+  if (filters.cursor) params.append('cursor', filters.cursor)
+  if (filters.limit) params.append('limit', filters.limit.toString())
+
+  const url = `${API_BASE}/transactions?${params.toString()}`
+  
+  // Check cache first (only for non-cursor requests)
+  if (!filters.cursor) {
+    const cached = apiCache.get(url, { token })
+    if (cached) {
+      return cached
+    }
+  }
+
+  const res = await axios.get(url, {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+  
+  const data = res.data
+  
+  // Cache the result (only for non-cursor requests)
+  if (!filters.cursor) {
+    apiCache.set(url, data, CACHE_TTL.TRANSACTIONS, { token })
+  }
+  
+  return data
+}
+
+// Category Suggestions
+export const fetchCategorySuggestions = async (
+  token: string, 
+  query: string
+): Promise<CategorySuggestion[]> => {
+  const res = await axios.get(`${API_BASE}/suggestions/categories?query=${encodeURIComponent(query)}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+  return res.data || []
 }
 

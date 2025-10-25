@@ -61,18 +61,32 @@ func main() {
 	// Protected routes
 	r.Route("/", func(r chi.Router) {
 		r.Use(a.Middleware)
+
+		// Expenses endpoints
 		r.Post("/expenses", h.AddExpense)
 		r.Get("/expenses", h.GetExpenses)
 		r.Get("/expenses/total", h.GetTotalExpenses)
 		r.Post("/expenses/shared", h.CreateSharedExpense)
-		r.Get("/debts", h.GetDebts)
-		
+
 		// Incomes endpoints
 		r.Post("/incomes", h.AddIncome)
 		r.Get("/incomes", h.GetIncomes)
 		r.Get("/incomes/total", h.GetTotalIncomes)
-		
-		// Balance endpoint
+
+		// Transactions endpoint (unified expenses/incomes)
+		r.Get("/transactions", h.GetTransactions)
+
+		// Subcategories CRUD
+		r.Post("/subcategories", h.CreateSubcategory)
+		r.Get("/subcategories", h.GetSubcategories)
+		r.Put("/subcategories/{id}", h.UpdateSubcategory)
+		r.Delete("/subcategories/{id}", h.DeleteSubcategory)
+
+		// Category suggestions
+		r.Get("/suggestions/categories", h.GetCategorySuggestions)
+
+		// Debts and balance
+		r.Get("/debts", h.GetDebts)
 		r.Get("/balance", h.GetBalance)
 	})
 

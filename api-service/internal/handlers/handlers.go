@@ -1,33 +1,99 @@
 ﻿package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/expense-tracker/api-service/internal/auth"
+	"github.com/expense-tracker/api-service/internal/cache"
+	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 )
 
 // Handlers holds dependencies for HTTP handlers
 type Handlers struct {
-	Auth *auth.Auth
-	DB   *pgxpool.Pool
+	Auth             *auth.Auth
+	DB               *pgxpool.Pool
+	Cache            *cache.MemoryCache
+	SuggestionsCache map[int]suggestionsCache // User ID -> Cache
 }
 
 func NewHandlers(a *auth.Auth, db *pgxpool.Pool) *Handlers {
-	return &Handlers{Auth: a, DB: db}
+	return &Handlers{
+		Auth:             a,
+		DB:               db,
+		Cache:            cache.NewMemoryCache(),
+		SuggestionsCache: make(map[int]suggestionsCache),
+	}
 }
 
 type expenseRequest struct {
-	AmountCents int    `json:"amount_cents"`
-	CategoryID  *int   `json:"category_id"`
-	Timestamp   string `json:"timestamp"` // RFC3339 optional
-	IsShared    bool   `json:"is_shared"`
+	AmountCents   int    `json:"amount_cents"`
+	CategoryID    *int   `json:"category_id"`
+	SubcategoryID *int   `json:"subcategory_id"`
+	OperationType string `json:"operation_type"` // "expense" or "income"
+	Timestamp     string `json:"timestamp"`      // RFC3339 optional
+	IsShared      bool   `json:"is_shared"`
+}
+
+type subcategoryRequest struct {
+	Name       string   `json:"name"`
+	CategoryID int      `json:"category_id"`
+	Aliases    []string `json:"aliases"`
+}
+
+type subcategoryResponse struct {
+	ID         int      `json:"id"`
+	Name       string   `json:"name"`
+	CategoryID int      `json:"category_id"`
+	Aliases    []string `json:"aliases"`
+	CreatedAt  string   `json:"created_at"`
+}
+
+type transactionResponse struct {
+	ID              int     `json:"id"`
+	UserID          int64   `json:"user_id"`
+	AmountCents     int     `json:"amount_cents"`
+	CategoryID      *int    `json:"category_id"`
+	SubcategoryID   *int    `json:"subcategory_id"`
+	OperationType   string  `json:"operation_type"`
+	Timestamp       string  `json:"timestamp"`
+	IsShared        bool    `json:"is_shared"`
+	Username        string  `json:"username"`
+	CategoryName    *string `json:"category_name"`
+	SubcategoryName *string `json:"subcategory_name"`
+}
+
+type transactionsFilter struct {
+	OperationType string `json:"operation_type"` // "expense", "income", "both"
+	CategoryID    *int   `json:"category_id"`
+	SubcategoryID *int   `json:"subcategory_id"`
+	StartDate     string `json:"start_date"` // RFC3339
+	EndDate       string `json:"end_date"`   // RFC3339
+	Page          int    `json:"page"`
+	Limit         int    `json:"limit"`
+}
+
+type categorySuggestion struct {
+	ID    int     `json:"id"`
+	Name  string  `json:"name"`
+	Type  string  `json:"type"` // "category" or "subcategory"
+	Score float64 `json:"score"`
+	Usage int     `json:"usage"` // Usage frequency
+}
+
+type suggestionsCache struct {
+	Data      []categorySuggestion `json:"data"`
+	ExpiresAt time.Time            `json:"expires_at"`
+	UserID    int                  `json:"user_id"`
 }
 
 // Login accepts a Telegram widget payload (map[string]string), verifies it and returns a JWT
@@ -91,6 +157,28 @@ func (h *Handlers) AddExpense(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
+
+	// Validate operation_type
+	if req.OperationType == "" {
+		req.OperationType = "expense" // default
+	}
+	if req.OperationType != "expense" && req.OperationType != "income" {
+		http.Error(w, "invalid operation_type", http.StatusBadRequest)
+		return
+	}
+
+	// Validate subcategory_id if provided
+	if req.SubcategoryID != nil && req.CategoryID != nil {
+		var exists bool
+		err := h.DB.QueryRow(r.Context(),
+			"SELECT EXISTS(SELECT 1 FROM subcategories WHERE id = $1 AND category_id = $2)",
+			*req.SubcategoryID, *req.CategoryID).Scan(&exists)
+		if err != nil || !exists {
+			http.Error(w, "subcategory does not belong to category", http.StatusBadRequest)
+			return
+		}
+	}
+
 	// parse timestamp if provided
 	ts := time.Now().UTC()
 	if req.Timestamp != "" {
@@ -98,13 +186,22 @@ func (h *Handlers) AddExpense(w http.ResponseWriter, r *http.Request) {
 			ts = parsed.UTC()
 		}
 	}
-	if _, err := h.DB.Exec(r.Context(), `INSERT INTO expenses (user_id, amount_cents, category_id, timestamp, is_shared) VALUES ($1,$2,NULL,$3,$4)`, userID, req.AmountCents, ts, req.IsShared); err != nil {
+
+	var expenseID int
+	err := h.DB.QueryRow(r.Context(),
+		`INSERT INTO expenses (user_id, amount_cents, category_id, subcategory_id, operation_type, timestamp, is_shared) 
+		 VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+		userID, req.AmountCents, req.CategoryID, req.SubcategoryID, req.OperationType, ts, req.IsShared).Scan(&expenseID)
+
+	if err != nil {
 		log.Error().Err(err).Msg("insert expense")
 		http.Error(w, "internal", http.StatusInternalServerError)
 		return
 	}
+
 	w.WriteHeader(http.StatusCreated)
-	log.Info().Int64("user_id", userID).Int("amount_cents", req.AmountCents).Msg("expense added")
+	json.NewEncoder(w).Encode(map[string]int{"id": expenseID})
+	log.Info().Int64("user_id", userID).Int("amount_cents", req.AmountCents).Str("operation_type", req.OperationType).Msg("expense added")
 }
 
 // GetExpenses returns recent expenses for ALL family members (whitelist)
@@ -119,7 +216,7 @@ func (h *Handlers) GetExpenses(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	
+
 	// Get all telegram_ids from whitelist to fetch family expenses
 	whitelistIDs := make([]int64, 0)
 	for _, idStr := range h.Auth.Whitelist {
@@ -129,7 +226,7 @@ func (h *Handlers) GetExpenses(w http.ResponseWriter, r *http.Request) {
 			whitelistIDs = append(whitelistIDs, tgID)
 		}
 	}
-	
+
 	// Fetch ALL expenses from whitelist users (family members)
 	query := `
 		SELECT e.id, e.user_id, e.amount_cents, e.category_id, e.timestamp, e.is_shared, u.username 
@@ -139,7 +236,7 @@ func (h *Handlers) GetExpenses(w http.ResponseWriter, r *http.Request) {
 		ORDER BY e.timestamp DESC 
 		LIMIT 200
 	`
-	
+
 	rows, err := h.DB.Query(r.Context(), query, whitelistIDs)
 	if err != nil {
 		log.Error().Err(err).Msg("select expenses")
@@ -147,7 +244,7 @@ func (h *Handlers) GetExpenses(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
-	
+
 	type e struct {
 		ID          int    `json:"id"`
 		UserID      int64  `json:"user_id"`
@@ -723,11 +820,11 @@ func (h *Handlers) InternalGetDebts(w http.ResponseWriter, r *http.Request) {
 // ========== INCOMES HANDLERS ==========
 
 type incomeRequest struct {
-	AmountCents    int    `json:"amount_cents"`
-	IncomeType     string `json:"income_type"`     // salary, debt_return, prize, gift, refund, other
-	Description    string `json:"description"`
-	RelatedDebtID  *int   `json:"related_debt_id"` // optional, for debt_return type
-	Timestamp      string `json:"timestamp"`       // RFC3339 optional
+	AmountCents   int    `json:"amount_cents"`
+	IncomeType    string `json:"income_type"` // salary, debt_return, prize, gift, refund, other
+	Description   string `json:"description"`
+	RelatedDebtID *int   `json:"related_debt_id"` // optional, for debt_return type
+	Timestamp     string `json:"timestamp"`       // RFC3339 optional
 }
 
 // AddIncome creates an income for the authenticated user
@@ -750,7 +847,7 @@ func (h *Handlers) AddIncome(w http.ResponseWriter, r *http.Request) {
 
 	// Validate income type
 	validTypes := map[string]bool{
-		"salary": true, "debt_return": true, "prize": true, 
+		"salary": true, "debt_return": true, "prize": true,
 		"gift": true, "refund": true, "other": true,
 	}
 	if !validTypes[req.IncomeType] {
@@ -767,8 +864,8 @@ func (h *Handlers) AddIncome(w http.ResponseWriter, r *http.Request) {
 
 	// If this is a debt_return and related_debt_id is provided, mark debt as paid
 	if req.IncomeType == "debt_return" && req.RelatedDebtID != nil {
-		_, err := h.DB.Exec(r.Context(), 
-			`UPDATE debts SET is_paid = true, paid_at = NOW() WHERE id = $1`, 
+		_, err := h.DB.Exec(r.Context(),
+			`UPDATE debts SET is_paid = true, paid_at = NOW() WHERE id = $1`,
 			*req.RelatedDebtID)
 		if err != nil {
 			log.Error().Err(err).Msg("update debt status")
@@ -776,11 +873,11 @@ func (h *Handlers) AddIncome(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var incomeID int
-	err := h.DB.QueryRow(r.Context(), 
+	err := h.DB.QueryRow(r.Context(),
 		`INSERT INTO incomes (user_id, amount_cents, income_type, description, related_debt_id, timestamp) 
-		 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`, 
+		 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
 		userID, req.AmountCents, req.IncomeType, req.Description, req.RelatedDebtID, ts).Scan(&incomeID)
-	
+
 	if err != nil {
 		log.Error().Err(err).Msg("insert income")
 		http.Error(w, "internal", http.StatusInternalServerError)
@@ -991,16 +1088,629 @@ func (h *Handlers) GetBalance(w http.ResponseWriter, r *http.Request) {
 	balanceCents := totalIncomesCents - totalExpensesCents
 
 	response := map[string]interface{}{
-		"balance_cents":       balanceCents,
-		"balance_rubles":      float64(balanceCents) / 100.0,
-		"total_incomes_cents": totalIncomesCents,
-		"total_incomes_rubles": float64(totalIncomesCents) / 100.0,
-		"total_expenses_cents": totalExpensesCents,
+		"balance_cents":         balanceCents,
+		"balance_rubles":        float64(balanceCents) / 100.0,
+		"total_incomes_cents":   totalIncomesCents,
+		"total_incomes_rubles":  float64(totalIncomesCents) / 100.0,
+		"total_expenses_cents":  totalExpensesCents,
 		"total_expenses_rubles": float64(totalExpensesCents) / 100.0,
-		"period":              period,
+		"period":                period,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 	log.Info().Int64("user_id", userID).Str("period", period).Int("balance_cents", balanceCents).Msg("returned family balance")
+}
+
+// ========== SUBCATEGORIES CRUD ==========
+
+// CreateSubcategory creates a new subcategory
+func (h *Handlers) CreateSubcategory(w http.ResponseWriter, r *http.Request) {
+	var req subcategoryRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	// Validate required fields
+	if req.Name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	if req.CategoryID <= 0 {
+		http.Error(w, "valid category_id is required", http.StatusBadRequest)
+		return
+	}
+
+	// Check if category exists
+	var categoryExists bool
+	err := h.DB.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM categories WHERE id = $1)", req.CategoryID).Scan(&categoryExists)
+	if err != nil || !categoryExists {
+		http.Error(w, "category not found", http.StatusBadRequest)
+		return
+	}
+
+	// Convert aliases to JSON
+	aliasesJSON, err := json.Marshal(req.Aliases)
+	if err != nil {
+		http.Error(w, "invalid aliases format", http.StatusBadRequest)
+		return
+	}
+
+	var subcategoryID int
+	err = h.DB.QueryRow(r.Context(),
+		`INSERT INTO subcategories (name, category_id, aliases) VALUES ($1, $2, $3) RETURNING id`,
+		req.Name, req.CategoryID, aliasesJSON).Scan(&subcategoryID)
+
+	if err != nil {
+		log.Error().Err(err).Msg("insert subcategory")
+		http.Error(w, "internal", http.StatusInternalServerError)
+		return
+	}
+
+	response := subcategoryResponse{
+		ID:         subcategoryID,
+		Name:       req.Name,
+		CategoryID: req.CategoryID,
+		Aliases:    req.Aliases,
+		CreatedAt:  time.Now().UTC().Format(time.RFC3339),
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(response)
+	log.Info().Int("subcategory_id", subcategoryID).Str("name", req.Name).Int("category_id", req.CategoryID).Msg("subcategory created")
+}
+
+// GetSubcategories returns all subcategories, optionally filtered by category
+func (h *Handlers) GetSubcategories(w http.ResponseWriter, r *http.Request) {
+	categoryID := r.URL.Query().Get("category_id")
+
+	var query string
+	var args []interface{}
+
+	if categoryID != "" {
+		query = `SELECT s.id, s.name, s.category_id, s.aliases, s.created_at, c.name as category_name 
+				 FROM subcategories s 
+				 JOIN categories c ON s.category_id = c.id 
+				 WHERE s.category_id = $1 
+				 ORDER BY s.name`
+		args = []interface{}{categoryID}
+	} else {
+		query = `SELECT s.id, s.name, s.category_id, s.aliases, s.created_at, c.name as category_name 
+				 FROM subcategories s 
+				 JOIN categories c ON s.category_id = c.id 
+				 ORDER BY c.name, s.name`
+		args = []interface{}{}
+	}
+
+	rows, err := h.DB.Query(r.Context(), query, args...)
+	if err != nil {
+		log.Error().Err(err).Msg("select subcategories")
+		http.Error(w, "internal", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	type subcategoryWithCategory struct {
+		ID           int      `json:"id"`
+		Name         string   `json:"name"`
+		CategoryID   int      `json:"category_id"`
+		CategoryName string   `json:"category_name"`
+		Aliases      []string `json:"aliases"`
+		CreatedAt    string   `json:"created_at"`
+	}
+
+	var subcategories []subcategoryWithCategory
+	for rows.Next() {
+		var s subcategoryWithCategory
+		var aliasesJSON []byte
+		var createdAt time.Time
+
+		if err := rows.Scan(&s.ID, &s.Name, &s.CategoryID, &aliasesJSON, &createdAt, &s.CategoryName); err == nil {
+			json.Unmarshal(aliasesJSON, &s.Aliases)
+			s.CreatedAt = createdAt.UTC().Format(time.RFC3339)
+			subcategories = append(subcategories, s)
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(subcategories)
+	log.Info().Int("count", len(subcategories)).Msg("returned subcategories")
+}
+
+// UpdateSubcategory updates an existing subcategory
+func (h *Handlers) UpdateSubcategory(w http.ResponseWriter, r *http.Request) {
+	subcategoryID := chi.URLParam(r, "id")
+	if subcategoryID == "" {
+		http.Error(w, "subcategory id required", http.StatusBadRequest)
+		return
+	}
+
+	var req subcategoryRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	// Validate required fields
+	if req.Name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	if req.CategoryID <= 0 {
+		http.Error(w, "valid category_id is required", http.StatusBadRequest)
+		return
+	}
+
+	// Convert aliases to JSON
+	aliasesJSON, err := json.Marshal(req.Aliases)
+	if err != nil {
+		http.Error(w, "invalid aliases format", http.StatusBadRequest)
+		return
+	}
+
+	// Check if subcategory exists
+	var exists bool
+	err = h.DB.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM subcategories WHERE id = $1)", subcategoryID).Scan(&exists)
+	if err != nil || !exists {
+		http.Error(w, "subcategory not found", http.StatusNotFound)
+		return
+	}
+
+	// Check if category exists
+	var categoryExists bool
+	err = h.DB.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM categories WHERE id = $1)", req.CategoryID).Scan(&categoryExists)
+	if err != nil || !categoryExists {
+		http.Error(w, "category not found", http.StatusBadRequest)
+		return
+	}
+
+	_, err = h.DB.Exec(r.Context(),
+		`UPDATE subcategories SET name = $1, category_id = $2, aliases = $3 WHERE id = $4`,
+		req.Name, req.CategoryID, aliasesJSON, subcategoryID)
+
+	if err != nil {
+		log.Error().Err(err).Msg("update subcategory")
+		http.Error(w, "internal", http.StatusInternalServerError)
+		return
+	}
+
+	response := subcategoryResponse{
+		ID:         int(subcategoryID[0] - '0'), // Simple conversion for demo
+		Name:       req.Name,
+		CategoryID: req.CategoryID,
+		Aliases:    req.Aliases,
+		CreatedAt:  time.Now().UTC().Format(time.RFC3339),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+	log.Info().Str("subcategory_id", subcategoryID).Str("name", req.Name).Msg("subcategory updated")
+}
+
+// DeleteSubcategory deletes a subcategory
+func (h *Handlers) DeleteSubcategory(w http.ResponseWriter, r *http.Request) {
+	subcategoryID := chi.URLParam(r, "id")
+	if subcategoryID == "" {
+		http.Error(w, "subcategory id required", http.StatusBadRequest)
+		return
+	}
+
+	// Check if subcategory exists
+	var exists bool
+	err := h.DB.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM subcategories WHERE id = $1)", subcategoryID).Scan(&exists)
+	if err != nil || !exists {
+		http.Error(w, "subcategory not found", http.StatusNotFound)
+		return
+	}
+
+	// Check if subcategory is used in expenses
+	var usedInExpenses bool
+	err = h.DB.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM expenses WHERE subcategory_id = $1)", subcategoryID).Scan(&usedInExpenses)
+	if err == nil && usedInExpenses {
+		http.Error(w, "cannot delete subcategory that is used in expenses", http.StatusBadRequest)
+		return
+	}
+
+	_, err = h.DB.Exec(r.Context(), "DELETE FROM subcategories WHERE id = $1", subcategoryID)
+	if err != nil {
+		log.Error().Err(err).Msg("delete subcategory")
+		http.Error(w, "internal", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+	log.Info().Str("subcategory_id", subcategoryID).Msg("subcategory deleted")
+}
+
+// ========== TRANSACTIONS ENDPOINT ==========
+
+// GetTransactions returns paginated transactions with filters using keyset pagination
+func (h *Handlers) GetTransactions(w http.ResponseWriter, r *http.Request) {
+	uid := r.Context().Value(auth.UserIDKey)
+	if uid == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	userID, ok := uid.(int64)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Parse query parameters
+	operationType := r.URL.Query().Get("operation_type")
+	categoryID := r.URL.Query().Get("category_id")
+	subcategoryID := r.URL.Query().Get("subcategory_id")
+	startDate := r.URL.Query().Get("start_date")
+	endDate := r.URL.Query().Get("end_date")
+	cursor := r.URL.Query().Get("cursor") // timestamp for keyset pagination
+	limitStr := r.URL.Query().Get("limit")
+
+	// Set defaults - limit to 20 for memory efficiency
+	limit := 20
+	if limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 50 {
+			limit = l
+		}
+	}
+
+	// Check cache first
+	cacheKey := fmt.Sprintf("transactions_%d_%s_%s_%s_%s_%s_%s",
+		userID, operationType, categoryID, subcategoryID, startDate, endDate, cursor)
+
+	if cached, found := h.Cache.Get(cacheKey); found {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(cached)
+		return
+	}
+
+	// Get whitelist IDs for family transactions
+	whitelistIDs := make([]int64, 0)
+	for _, idStr := range h.Auth.Whitelist {
+		if idStr != "*" {
+			var tgID int64
+			fmt.Sscan(idStr, &tgID)
+			whitelistIDs = append(whitelistIDs, tgID)
+		}
+	}
+
+	// Build WHERE clause
+	var whereConditions []string
+	var args []interface{}
+	argIndex := 1
+
+	// Operation type filter
+	if operationType != "" && operationType != "both" {
+		whereConditions = append(whereConditions, fmt.Sprintf("e.operation_type = $%d", argIndex))
+		args = append(args, operationType)
+		argIndex++
+	}
+
+	// Category filter
+	if categoryID != "" {
+		if catID, err := strconv.Atoi(categoryID); err == nil {
+			whereConditions = append(whereConditions, fmt.Sprintf("e.category_id = $%d", argIndex))
+			args = append(args, catID)
+			argIndex++
+		}
+	}
+
+	// Subcategory filter
+	if subcategoryID != "" {
+		if subID, err := strconv.Atoi(subcategoryID); err == nil {
+			whereConditions = append(whereConditions, fmt.Sprintf("e.subcategory_id = $%d", argIndex))
+			args = append(args, subID)
+			argIndex++
+		}
+	}
+
+	// Date filters
+	if startDate != "" {
+		if _, err := time.Parse(time.RFC3339, startDate); err == nil {
+			whereConditions = append(whereConditions, fmt.Sprintf("e.timestamp >= $%d", argIndex))
+			args = append(args, startDate)
+			argIndex++
+		}
+	}
+	if endDate != "" {
+		if _, err := time.Parse(time.RFC3339, endDate); err == nil {
+			whereConditions = append(whereConditions, fmt.Sprintf("e.timestamp <= $%d", argIndex))
+			args = append(args, endDate)
+			argIndex++
+		}
+	}
+
+	// User filter (whitelist)
+	whereConditions = append(whereConditions, fmt.Sprintf("u.telegram_id = ANY($%d)", argIndex))
+	args = append(args, whitelistIDs)
+	argIndex++
+
+	// Build WHERE clause
+	whereClause := ""
+	if len(whereConditions) > 0 {
+		whereClause = "WHERE " + strings.Join(whereConditions, " AND ")
+	}
+
+	// Add keyset pagination condition
+	if cursor != "" {
+		if cursorTime, err := time.Parse(time.RFC3339, cursor); err == nil {
+			whereConditions = append(whereConditions, fmt.Sprintf("e.timestamp < $%d", argIndex))
+			args = append(args, cursorTime)
+			argIndex++
+		}
+	}
+
+	// Update where clause with keyset condition
+	whereClause = ""
+	if len(whereConditions) > 0 {
+		whereClause = "WHERE " + strings.Join(whereConditions, " AND ")
+	}
+
+	// Optimized query with keyset pagination (no COUNT for performance)
+	query := fmt.Sprintf(`
+		SELECT e.id, e.user_id, e.amount_cents, e.category_id, e.subcategory_id, 
+			   e.operation_type, e.timestamp, e.is_shared, u.username,
+			   c.name as category_name, s.name as subcategory_name
+		FROM expenses e
+		LEFT JOIN users u ON e.user_id = u.id
+		LEFT JOIN categories c ON e.category_id = c.id
+		LEFT JOIN subcategories s ON e.subcategory_id = s.id
+		%s
+		ORDER BY e.timestamp DESC, e.id DESC
+		LIMIT $%d
+	`, whereClause, argIndex)
+
+	args = append(args, limit+1) // Get one extra to check if there are more
+
+	rows, err := h.DB.Query(r.Context(), query, args...)
+	if err != nil {
+		log.Error().Err(err).Msg("select transactions")
+		http.Error(w, "internal", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var transactions []transactionResponse
+	var nextCursor string
+
+	for rows.Next() {
+		var t transactionResponse
+		var ts time.Time
+		var username *string
+		var categoryName *string
+		var subcategoryName *string
+
+		if err := rows.Scan(&t.ID, &t.UserID, &t.AmountCents, &t.CategoryID, &t.SubcategoryID,
+			&t.OperationType, &ts, &t.IsShared, &username, &categoryName, &subcategoryName); err == nil {
+			t.Timestamp = ts.UTC().Format(time.RFC3339)
+			if username != nil {
+				t.Username = *username
+			}
+			if categoryName != nil {
+				t.CategoryName = categoryName
+			}
+			if subcategoryName != nil {
+				t.SubcategoryName = subcategoryName
+			}
+			transactions = append(transactions, t)
+		}
+	}
+
+	// Check if there are more records (keyset pagination)
+	hasMore := len(transactions) > limit
+	if hasMore {
+		// Remove the extra record and set next cursor
+		transactions = transactions[:limit]
+		nextCursor = transactions[len(transactions)-1].Timestamp
+	}
+
+	response := map[string]interface{}{
+		"transactions": transactions,
+		"pagination": map[string]interface{}{
+			"limit":       limit,
+			"has_more":    hasMore,
+			"next_cursor": nextCursor,
+		},
+		"filters": map[string]interface{}{
+			"operation_type": operationType,
+			"category_id":    categoryID,
+			"subcategory_id": subcategoryID,
+			"start_date":     startDate,
+			"end_date":       endDate,
+		},
+	}
+
+	// Cache the response
+	h.Cache.Set(cacheKey, response, 5*time.Minute)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+	log.Info().Int64("user_id", userID).Int("count", len(transactions)).Msg("returned transactions")
+}
+
+// ========== CATEGORY SUGGESTIONS ==========
+
+// GetCategorySuggestions returns smart category suggestions based on query with caching and usage statistics
+func (h *Handlers) GetCategorySuggestions(w http.ResponseWriter, r *http.Request) {
+	// Get user ID from JWT
+	userID, err := h.Auth.GetUserIDFromRequest(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	query := r.URL.Query().Get("query")
+	if query == "" {
+		http.Error(w, "query parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	// Check cache first
+	if cache, exists := h.SuggestionsCache[int(userID)]; exists && time.Now().Before(cache.ExpiresAt) {
+		// Filter cached results by query
+		filteredSuggestions := h.filterSuggestionsByQuery(cache.Data, query)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(filteredSuggestions)
+		return
+	}
+
+	// Generate new suggestions with usage statistics
+	suggestions, err := h.generateSmartSuggestions(r.Context(), int(userID), query)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to generate suggestions")
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// Cache the results for 1 hour
+	h.SuggestionsCache[int(userID)] = suggestionsCache{
+		Data:      suggestions,
+		ExpiresAt: time.Now().Add(1 * time.Hour),
+		UserID:    int(userID),
+	}
+
+	// Filter by query and return
+	filteredSuggestions := h.filterSuggestionsByQuery(suggestions, query)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(filteredSuggestions)
+	log.Info().Str("query", query).Int("count", len(filteredSuggestions)).Msg("returned smart category suggestions")
+}
+
+// generateSmartSuggestions generates suggestions with usage statistics and similarity search
+func (h *Handlers) generateSmartSuggestions(ctx context.Context, userID int, query string) ([]categorySuggestion, error) {
+	var suggestions []categorySuggestion
+
+	// Get category suggestions with usage frequency and similarity
+	categoryQuery := `
+		WITH user_category_usage AS (
+			SELECT 
+				c.id,
+				c.name,
+				COUNT(e.id) as usage_count,
+				similarity(c.name, $2) as similarity_score
+			FROM categories c
+			LEFT JOIN expenses e ON c.id = e.category_id 
+				AND e.user_id = $1 
+				AND e.timestamp >= NOW() - INTERVAL '30 days'
+			WHERE c.name ILIKE '%' || $2 || '%' 
+				OR similarity(c.name, $2) > 0.3
+			GROUP BY c.id, c.name
+		)
+		SELECT 
+			id, name, usage_count, similarity_score
+		FROM user_category_usage
+		ORDER BY usage_count DESC, similarity_score DESC
+		LIMIT 20
+	`
+
+	rows, err := h.DB.Query(ctx, categoryQuery, userID, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query categories: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var id int
+		var name string
+		var usage int
+		var similarity float64
+		if err := rows.Scan(&id, &name, &usage, &similarity); err != nil {
+			continue
+		}
+
+		// Calculate score based on usage and similarity
+		score := float64(usage)*0.7 + similarity*0.3
+
+		suggestions = append(suggestions, categorySuggestion{
+			ID:    id,
+			Name:  name,
+			Type:  "category",
+			Score: score,
+			Usage: usage,
+		})
+	}
+
+	// Get subcategory suggestions with usage frequency and similarity
+	subcategoryQuery := `
+		WITH user_subcategory_usage AS (
+			SELECT 
+				s.id,
+				s.name,
+				c.name as category_name,
+				COUNT(e.id) as usage_count,
+				similarity(s.name, $2) as similarity_score
+			FROM subcategories s
+			JOIN categories c ON s.category_id = c.id
+			LEFT JOIN expenses e ON s.id = e.subcategory_id 
+				AND e.user_id = $1 
+				AND e.timestamp >= NOW() - INTERVAL '30 days'
+			WHERE s.name ILIKE '%' || $2 || '%' 
+				OR similarity(s.name, $2) > 0.3
+			GROUP BY s.id, s.name, c.name
+		)
+		SELECT 
+			id, name, category_name, usage_count, similarity_score
+		FROM user_subcategory_usage
+		ORDER BY usage_count DESC, similarity_score DESC
+		LIMIT 20
+	`
+
+	subRows, err := h.DB.Query(ctx, subcategoryQuery, userID, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query subcategories: %w", err)
+	}
+	defer subRows.Close()
+
+	for subRows.Next() {
+		var id int
+		var name string
+		var categoryName string
+		var usage int
+		var similarity float64
+		if err := subRows.Scan(&id, &name, &categoryName, &usage, &similarity); err != nil {
+			continue
+		}
+
+		// Calculate score based on usage and similarity
+		score := float64(usage)*0.7 + similarity*0.3
+
+		suggestions = append(suggestions, categorySuggestion{
+			ID:    id,
+			Name:  name,
+			Type:  "subcategory",
+			Score: score,
+			Usage: usage,
+		})
+	}
+
+	// Sort by score (highest first)
+	sort.Slice(suggestions, func(i, j int) bool {
+		return suggestions[i].Score > suggestions[j].Score
+	})
+
+	return suggestions, nil
+}
+
+// filterSuggestionsByQuery filters cached suggestions by query
+func (h *Handlers) filterSuggestionsByQuery(suggestions []categorySuggestion, query string) []categorySuggestion {
+	if query == "" {
+		return suggestions
+	}
+
+	queryLower := strings.ToLower(query)
+	var filtered []categorySuggestion
+
+	for _, suggestion := range suggestions {
+		if strings.Contains(strings.ToLower(suggestion.Name), queryLower) {
+			filtered = append(filtered, suggestion)
+		}
+	}
+
+	// Limit to 10 suggestions
+	if len(filtered) > 10 {
+		filtered = filtered[:10]
+	}
+
+	return filtered
 }

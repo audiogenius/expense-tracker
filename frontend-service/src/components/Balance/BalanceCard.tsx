@@ -1,13 +1,43 @@
-import React from 'react'
-import type { Balance, Period } from '../../types'
+import React, { useState } from 'react'
+import type { Balance, Period, CustomPeriod } from '../../types'
 
 type BalanceCardProps = {
   balance: Balance | null
   filterPeriod: Period
+  customPeriod?: CustomPeriod
   onPeriodChange: (period: Period) => void
+  onCustomPeriodChange?: (period: CustomPeriod) => void
 }
 
-export const BalanceCard: React.FC<BalanceCardProps> = ({ balance, filterPeriod, onPeriodChange }) => {
+export const BalanceCard: React.FC<BalanceCardProps> = ({ 
+  balance, 
+  filterPeriod, 
+  customPeriod,
+  onPeriodChange, 
+  onCustomPeriodChange 
+}) => {
+  const [showCustomPeriod, setShowCustomPeriod] = useState(false)
+  const [tempCustomPeriod, setTempCustomPeriod] = useState<CustomPeriod>({
+    start_date: customPeriod?.start_date || '',
+    end_date: customPeriod?.end_date || ''
+  })
+
+  const handleCustomPeriodSubmit = () => {
+    if (tempCustomPeriod.start_date && tempCustomPeriod.end_date) {
+      onCustomPeriodChange?.(tempCustomPeriod)
+      onPeriodChange('custom')
+      setShowCustomPeriod(false)
+    }
+  }
+
+  const handleCustomPeriodCancel = () => {
+    setTempCustomPeriod({
+      start_date: customPeriod?.start_date || '',
+      end_date: customPeriod?.end_date || ''
+    })
+    setShowCustomPeriod(false)
+  }
+
   return (
     <div className="glass-card">
       <h3>Семейный бюджет</h3>
@@ -17,6 +47,12 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({ balance, filterPeriod,
           onClick={() => onPeriodChange('all')}
         >
           Все
+        </button>
+        <button
+          className={filterPeriod === 'day' ? 'active' : 'secondary'}
+          onClick={() => onPeriodChange('day')}
+        >
+          День
         </button>
         <button
           className={filterPeriod === 'week' ? 'active' : 'secondary'}
@@ -30,7 +66,46 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({ balance, filterPeriod,
         >
           Месяц
         </button>
+        <button
+          className={filterPeriod === 'custom' ? 'active' : 'secondary'}
+          onClick={() => setShowCustomPeriod(!showCustomPeriod)}
+        >
+          Выбрать период
+        </button>
       </div>
+
+      {showCustomPeriod && (
+        <div className="custom-period-selector">
+          <div className="date-inputs">
+            <div className="date-input-group">
+              <label>От:</label>
+              <input
+                type="date"
+                value={tempCustomPeriod.start_date}
+                onChange={(e) => setTempCustomPeriod(prev => ({ ...prev, start_date: e.target.value }))}
+                className="date-input"
+              />
+            </div>
+            <div className="date-input-group">
+              <label>До:</label>
+              <input
+                type="date"
+                value={tempCustomPeriod.end_date}
+                onChange={(e) => setTempCustomPeriod(prev => ({ ...prev, end_date: e.target.value }))}
+                className="date-input"
+              />
+            </div>
+          </div>
+          <div className="custom-period-buttons">
+            <button onClick={handleCustomPeriodSubmit} className="btn-primary">
+              Применить
+            </button>
+            <button onClick={handleCustomPeriodCancel} className="btn-secondary">
+              Отмена
+            </button>
+          </div>
+        </div>
+      )}
       {balance && (
         <div className="balance-grid">
           <div className="balance-card">

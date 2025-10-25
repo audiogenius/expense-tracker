@@ -1,6 +1,11 @@
+# Docker Compose для Timeweb Cloud MSK 30 (2GB RAM)
+# Оптимизированная конфигурация для ограниченных ресурсов
+
+version: '3.8'
+
 services:
   db:
-    image: postgres:16
+    image: postgres:16-alpine  # Используем Alpine для экономии места
     container_name: expense_db
     env_file: .env
     environment:
@@ -11,6 +16,7 @@ services:
     volumes:
       - db-data:/var/lib/postgresql/data
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./db/migrations:/docker-entrypoint-initdb.d/migrations:ro
     ports:
       - "5432:5432"
     healthcheck:
@@ -18,6 +24,15 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    restart: unless-stopped
 
   api:
     build: ./api-service
@@ -35,6 +50,14 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.25'
 
   bot:
     build: ./bot-service
@@ -44,6 +67,14 @@ services:
       api:
         condition: service_healthy
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.25'
+        reservations:
+          memory: 64M
+          cpus: '0.1'
 
   ocr:
     build: ./ocr-service
@@ -52,6 +83,14 @@ services:
     volumes:
       - ./tmp:/tmp
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.25'
+        reservations:
+          memory: 64M
+          cpus: '0.1'
 
   frontend:
     build: ./frontend-service
@@ -62,21 +101,16 @@ services:
     ports:
       - "3000:80"
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.25'
+        reservations:
+          memory: 64M
+          cpus: '0.1'
 
-  proxy:
-    build: ./proxy-service
-    container_name: expense_proxy
-    env_file: .env
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - /etc/letsencrypt:/etc/letsencrypt:ro
-    depends_on:
-      - frontend
-      - api
-    restart: unless-stopped
-
+  # Ollama с жесткими ограничениями для 2GB RAM
   ollama:
     image: ollama/ollama:latest
     container_name: expense_ollama
@@ -93,11 +127,11 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1.5G
-          cpus: '1.0'
+          memory: 1.2G  # Уменьшено с 1.5G для стабильности
+          cpus: '0.8'    # Уменьшено с 1.0 для стабильности
         reservations:
-          memory: 1G
-          cpus: '0.5'
+          memory: 512M
+          cpus: '0.4'
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:11434/api/tags || exit 1"]
       interval: 30s
@@ -105,6 +139,7 @@ services:
       retries: 3
       start_period: 60s
 
+  # Analytics с минимальными ресурсами
   analytics:
     build: ./analytics-service
     container_name: expense_analytics
@@ -129,7 +164,50 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.25'
+        reservations:
+          memory: 64M
+          cpus: '0.1'
+
+  # Nginx proxy (если нужен)
+  proxy:
+    image: nginx:alpine
+    container_name: expense_proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./proxy-service/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - frontend
+      - api
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: '0.1'
+        reservations:
+          memory: 32M
+          cpus: '0.05'
 
 volumes:
   db-data:
+    driver: local
   ollama-data:
+    driver: local
+
+# Настройки сети для оптимизации
+networks:
+  default:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: expense-tracker
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

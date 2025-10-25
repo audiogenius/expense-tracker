@@ -1,0 +1,415 @@
+openapi: 3.0.3
+info:
+  title: Expense Tracker API
+  description: API for personal expense tracking with AI analytics
+  version: 2.0.0
+  contact:
+    name: Expense Tracker Team
+    email: support@expense-tracker.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080/api
+    description: Development server
+  - url: https://api.expense-tracker.com/api
+    description: Production server
+
+security:
+  - BearerAuth: []
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Check API health status
+      tags:
+        - Health
+      security: []
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  timestamp:
+                    type: string
+                    format: date-time
+                  version:
+                    type: string
+                    example: "2.0.0"
+
+  /login:
+    post:
+      summary: Telegram login
+      description: Authenticate user with Telegram widget data
+      tags:
+        - Authentication
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: integer
+                first_name:
+                  type: string
+                last_name:
+                  type: string
+                username:
+                  type: string
+                photo_url:
+                  type: string
+                auth_date:
+                  type: integer
+                hash:
+                  type: string
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  username:
+                    type: string
+                  id:
+                    type: integer
+                  photo_url:
+                    type: string
+        '401':
+          description: Authentication failed
+
+  /transactions:
+    get:
+      summary: Get transactions with keyset pagination
+      description: Retrieve paginated transactions with filters using keyset pagination for optimal performance
+      tags:
+        - Transactions
+      parameters:
+        - name: operation_type
+          in: query
+          description: Filter by operation type
+          schema:
+            type: string
+            enum: [expense, income, both]
+        - name: category_id
+          in: query
+          description: Filter by category ID
+          schema:
+            type: integer
+        - name: subcategory_id
+          in: query
+          description: Filter by subcategory ID
+          schema:
+            type: integer
+        - name: start_date
+          in: query
+          description: Start date filter (RFC3339)
+          schema:
+            type: string
+            format: date-time
+        - name: end_date
+          in: query
+          description: End date filter (RFC3339)
+          schema:
+            type: string
+            format: date-time
+        - name: cursor
+          in: query
+          description: Cursor for keyset pagination (timestamp)
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          description: Number of records to return (max 50)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        '200':
+          description: Transactions retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transactions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Transaction'
+                  pagination:
+                    type: object
+                    properties:
+                      limit:
+                        type: integer
+                      has_more:
+                        type: boolean
+                      next_cursor:
+                        type: string
+                        format: date-time
+                  filters:
+                    type: object
+                    additionalProperties:
+                      type: string
+
+  /suggestions/categories:
+    get:
+      summary: Get smart category suggestions
+      description: Get intelligent category suggestions with usage statistics and similarity search
+      tags:
+        - Suggestions
+      parameters:
+        - name: query
+          in: query
+          required: true
+          description: Search query for categories
+          schema:
+            type: string
+            minLength: 2
+            example: "продукты"
+      responses:
+        '200':
+          description: Category suggestions retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CategorySuggestion'
+        '400':
+          description: Invalid query parameter
+        '401':
+          description: Unauthorized
+
+  /categories:
+    get:
+      summary: Get all categories
+      description: Retrieve all expense/income categories
+      tags:
+        - Categories
+      responses:
+        '200':
+          description: Categories retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+
+  /subcategories:
+    get:
+      summary: Get subcategories by category
+      description: Retrieve subcategories for a specific category
+      tags:
+        - Categories
+      parameters:
+        - name: category_id
+          in: query
+          required: true
+          description: Category ID
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Subcategories retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Subcategory'
+
+  /expenses:
+    post:
+      summary: Add expense/income
+      description: Add a new expense or income transaction
+      tags:
+        - Transactions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExpenseRequest'
+      responses:
+        '201':
+          description: Transaction created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '400':
+          description: Invalid request data
+        '401':
+          description: Unauthorized
+
+  /expenses/total:
+    get:
+      summary: Get total expenses/income
+      description: Calculate total expenses or income for a period
+      tags:
+        - Analytics
+      parameters:
+        - name: period
+          in: query
+          required: true
+          description: Time period for calculation
+          schema:
+            type: string
+            enum: [day, week, month, year, all]
+      responses:
+        '200':
+          description: Total calculated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_cents:
+                    type: integer
+                  total_rubles:
+                    type: number
+                  period:
+                    type: string
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        amount_cents:
+          type: integer
+        category_id:
+          type: integer
+          nullable: true
+        subcategory_id:
+          type: integer
+          nullable: true
+        operation_type:
+          type: string
+          enum: [expense, income]
+        timestamp:
+          type: string
+          format: date-time
+        is_shared:
+          type: boolean
+        username:
+          type: string
+        category_name:
+          type: string
+          nullable: true
+        subcategory_name:
+          type: string
+          nullable: true
+
+    CategorySuggestion:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        type:
+          type: string
+          enum: [category, subcategory]
+        score:
+          type: number
+          format: float
+        usage:
+          type: integer
+          description: Number of times used in last 30 days
+
+    Category:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        aliases:
+          type: array
+          items:
+            type: string
+
+    Subcategory:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        category_id:
+          type: integer
+        aliases:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+
+    ExpenseRequest:
+      type: object
+      required:
+        - amount_cents
+        - operation_type
+      properties:
+        amount_cents:
+          type: integer
+          minimum: 1
+        category_id:
+          type: integer
+          nullable: true
+        subcategory_id:
+          type: integer
+          nullable: true
+        operation_type:
+          type: string
+          enum: [expense, income]
+        timestamp:
+          type: string
+          format: date-time
+        is_shared:
+          type: boolean
+          default: false
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Authentication
+    description: User authentication
+  - name: Transactions
+    description: Transaction management
+  - name: Categories
+    description: Category and subcategory management
+  - name: Suggestions
+    description: Smart suggestions
+  - name: Analytics
+    description: Financial analytics

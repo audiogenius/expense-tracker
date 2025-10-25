@@ -7,15 +7,182 @@
 }
 
 .chart-container {
-  min-height: 280px;
+  min-height: 320px;
   display: flex;
   flex-direction: column;
 }
 
-.chart-container h3 {
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
   margin-bottom: var(--spacing);
+  gap: var(--spacing);
+}
+
+.chart-header h3 {
+  margin: 0;
   font-size: 16px;
   font-weight: 700;
   color: #ffffff;
+  flex: 1;
+}
+
+.chart-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.chart-type-buttons,
+.chart-period-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.chart-type-buttons button,
+.chart-period-buttons button {
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: var(--border-radius-sm);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.chart-type-buttons button:hover,
+.chart-period-buttons button:hover {
+  background: var(--glass-bg-hover);
+  color: var(--text);
+}
+
+.chart-type-buttons button.active,
+.chart-period-buttons button.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+/* Custom Period Selector */
+.custom-period-selector {
+  margin-bottom: var(--spacing);
+  padding: var(--spacing);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--border-color);
+}
+
+.date-inputs {
+  display: flex;
+  gap: var(--spacing);
+  margin-bottom: var(--spacing);
+}
+
+.date-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.date-input-group label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.date-input {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  border-radius: var(--border-radius-sm);
+  font-size: 14px;
+}
+
+.date-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.custom-period-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.btn-primary,
+.btn-secondary {
+  padding: 6px 12px;
+  border: none;
+  border-radius: var(--border-radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover {
+  background: var(--glass-bg-hover);
+  color: var(--text);
+}
+
+/* Responsive Charts */
+@media (max-width: 768px) {
+  .chart-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  
+  .chart-controls {
+    align-items: stretch;
+  }
+  
+  .chart-type-buttons,
+  .chart-period-buttons {
+    justify-content: center;
+  }
+  
+  .date-inputs {
+    flex-direction: column;
+  }
+  
+  .custom-period-buttons {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .chart-type-buttons,
+  .chart-period-buttons {
+    flex-wrap: wrap;
+  }
+  
+  .chart-type-buttons button,
+  .chart-period-buttons button {
+    flex: 1;
+    min-width: 0;
+  }
 }
 
