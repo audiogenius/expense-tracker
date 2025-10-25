@@ -47,7 +47,7 @@ func main() {
 	})
 
 	// Public login endpoint
-	r.Post("/login", h.Login)
+	r.Post("/api/login", h.Login)
 
 	// Public categories endpoint
 	r.Get("/categories", h.GetCategories)
