@@ -45,12 +45,21 @@ type LoginRequest struct {
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	log.Info().Msg("Login handler called")
 
-	// Parse request payload
-	var req LoginRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Error().Err(err).Msg("failed to decode login request")
+	// Parse URL-encoded form data (Telegram format)
+	if err := r.ParseForm(); err != nil {
+		log.Error().Err(err).Msg("failed to parse form")
 		auth.WriteSimpleError(w, http.StatusBadRequest, "Invalid request format")
 		return
+	}
+
+	// Create request from form data
+	req := LoginRequest{
+		ID:        r.FormValue("id"),
+		Username:  r.FormValue("username"),
+		PhotoURL:  r.FormValue("photo_url"),
+		Hash:      r.FormValue("hash"),
+		FirstName: r.FormValue("first_name"),
+		LastName:  r.FormValue("last_name"),
 	}
 
 	log.Info().
