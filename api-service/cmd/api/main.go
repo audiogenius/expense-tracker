@@ -34,7 +34,15 @@ func main() {
 
 	// Initialize auth and handlers modules
 	a := auth.NewAuth(pool)
-	h := handlers.NewHandlers(a, pool)
+
+	// Initialize new modular handlers
+	authHandlers := handlers.NewAuthHandlers(a, pool)
+	expenseHandlers := handlers.NewExpenseHandlers(pool, a)
+	incomeHandlers := handlers.NewIncomeHandlers(pool, a)
+	transactionHandlers := handlers.NewTransactionHandlers(pool, a)
+	categoryHandlers := handlers.NewCategoryHandlers(pool)
+	debtHandlers := handlers.NewDebtHandlers(pool, a)
+	internalHandlers := handlers.NewInternalHandlers(pool)
 
 	r := chi.NewRouter()
 	// Global middleware
@@ -49,56 +57,56 @@ func main() {
 	})
 
 	// Public categories endpoint
-	r.Get("/categories", h.GetCategories)
-	r.Post("/categories/detect", h.DetectCategory)
+	r.Get("/categories", categoryHandlers.GetCategories)
+	r.Post("/categories/detect", categoryHandlers.DetectCategory)
 
 	// Internal bot endpoints (protected by X-BOT-KEY header)
-	r.Post("/internal/expenses", h.InternalPostExpense)
-	r.Get("/internal/expenses/total", h.InternalGetTotalExpenses)
-	r.Get("/internal/debts", h.InternalGetDebts)
+	r.Post("/internal/expenses", internalHandlers.InternalPostExpense)
+	r.Get("/internal/expenses/total", internalHandlers.InternalGetTotalExpenses)
+	r.Get("/internal/debts", internalHandlers.InternalGetDebts)
 
 	// Protected routes
 	r.Route("/", func(r chi.Router) {
 		r.Use(a.Middleware)
 
 		// Expenses endpoints
-		r.Post("/expenses", h.AddExpense)
-		r.Get("/expenses", h.GetExpenses)
-		r.Get("/expenses/total", h.GetTotalExpenses)
-		r.Post("/expenses/shared", h.CreateSharedExpense)
+		r.Post("/expenses", expenseHandlers.AddExpense)
+		r.Get("/expenses", expenseHandlers.GetExpenses)            // Use new modular handler
+		r.Get("/expenses/total", expenseHandlers.GetTotalExpenses) // Use new modular handler
+		r.Post("/expenses/shared", debtHandlers.CreateSharedExpense)
 
 		// Incomes endpoints
-		r.Post("/incomes", h.AddIncome)
-		r.Get("/incomes", h.GetIncomes)
-		r.Get("/incomes/total", h.GetTotalIncomes)
+		r.Post("/incomes", incomeHandlers.AddIncome)
+		r.Get("/incomes", incomeHandlers.GetIncomes)
+		r.Get("/incomes/total", incomeHandlers.GetTotalIncomes)
 
 		// Transactions endpoint (unified expenses/incomes)
-		r.Get("/transactions", h.GetTransactions)
+		r.Get("/transactions", transactionHandlers.GetTransactions)
 
 		// Subcategories CRUD
-		r.Post("/subcategories", h.CreateSubcategory)
-		r.Get("/subcategories", h.GetSubcategories)
-		r.Put("/subcategories/{id}", h.UpdateSubcategory)
-		r.Delete("/subcategories/{id}", h.DeleteSubcategory)
+		r.Post("/subcategories", categoryHandlers.CreateSubcategory)
+		r.Get("/subcategories", categoryHandlers.GetSubcategories)
+		r.Put("/subcategories/{id}", categoryHandlers.UpdateSubcategory)    // Use new modular handler
+		r.Delete("/subcategories/{id}", categoryHandlers.DeleteSubcategory) // Use new modular handler
 
 		// Category suggestions
-		r.Get("/suggestions/categories", h.GetCategorySuggestions)
+		r.Get("/suggestions/categories", categoryHandlers.GetCategorySuggestions)
 
 		// Debts and balance
-		r.Get("/debts", h.GetDebts)
-		r.Get("/balance", h.GetBalance)
+		r.Get("/debts", debtHandlers.GetDebts)
+		r.Get("/balance", debtHandlers.GetBalance)
 	})
 
 	// Public login endpoint (must be after protected routes to avoid conflicts)
 	r.Post("/api/login", func(w http.ResponseWriter, r *http.Request) {
 		log.Info().Msg("Route /api/login matched - calling Login handler")
-		h.Login(w, r)
+		authHandlers.Login(w, r)
 	})
 
 	// Also handle /login for direct access
 	r.Post("/login", func(w http.ResponseWriter, r *http.Request) {
 		log.Info().Msg("Route /login matched - calling Login handler")
-		h.Login(w, r)
+		authHandlers.Login(w, r)
 	})
 
 	srv := &http.Server{

@@ -87,7 +87,9 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 			"hash":       req.Hash,
 		}
 
-		if !h.auth.VerifyTelegramAuth(authData) {
+		// Use validator for Telegram auth verification
+		validator := NewValidator()
+		if !validator.VerifyTelegramAuth(authData) {
 			log.Error().Str("telegram_id", req.ID).Msg("telegram auth verification failed")
 			auth.WriteSimpleError(w, http.StatusForbidden, "Invalid Telegram authentication")
 			return
