@@ -16,7 +16,19 @@ const API_BASE = '/api'
 
 // Auth
 export const loginWithTelegram = async (authData: Record<string, any>) => {
-  const res = await axios.post(`${API_BASE}/login`, authData)
+  // Convert authData to URL-encoded format
+  const formData = new URLSearchParams()
+  Object.entries(authData).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      formData.append(key, String(value))
+    }
+  })
+  
+  const res = await axios.post(`${API_BASE}/login`, formData, {
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    }
+  })
   return {
     token: res.data.token,
     profile: {
