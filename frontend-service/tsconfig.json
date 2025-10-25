@@ -9,7 +9,7 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "types": ["vite/client", "react", "react-dom"]
+    "types": ["react", "react-dom"]
   },
   "include": ["src", "src/types/**/*"]
 }

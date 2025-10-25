@@ -1,18 +1,17 @@
 #!/bin/bash
 
-echo "=== Простое отключение HTTPS ==="
+echo "=== Простое исправление nginx ==="
 
 echo "1. Остановка nginx:"
 docker-compose stop proxy
 echo ""
 
-echo "2. Создание простой HTTP-only конфигурации:"
+echo "2. Создание простой конфигурации:"
 docker-compose exec proxy sh -c 'cat > /etc/nginx/conf.d/default.conf << "EOF"
 server {
     listen 80;
     server_name _;
     
-    # API endpoints
     location /api/ {
         proxy_pass http://api:8080;
         proxy_set_header Host $host;
@@ -20,12 +19,10 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         
-        # CORS headers
         add_header Access-Control-Allow-Origin *;
         add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS";
         add_header Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With";
         
-        # Обработка preflight запросов
         if ($request_method = OPTIONS) {
             add_header Access-Control-Allow-Origin *;
             add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS";
@@ -36,7 +33,6 @@ server {
         }
     }
     
-    # Frontend
     location / {
         proxy_pass http://frontend:80;
         proxy_set_header Host $host;
@@ -83,5 +79,4 @@ curl -s -o /dev/null -w "API login: %{http_code}\n" http://localhost/api/login
 curl -s -o /dev/null -w "Frontend: %{http_code}\n" http://localhost/
 
 echo ""
-echo "=== Отключение HTTPS завершено ==="
-echo "Теперь сайт доступен только по HTTP: http://rd-expense-tracker-bot.ru"
+echo "=== Исправление завершено ==="
