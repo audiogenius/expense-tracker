@@ -113,7 +113,7 @@ func (s *Scheduler) runDailyReport(ctx context.Context) {
 
 	// Try to enhance with AI if available
 	if s.ollama != nil {
-		if isHealthy, _ := s.ollama.HealthCheck(ctx); isHealthy {
+		if err := s.ollama.HealthCheck(); err == nil {
 			aiMessage, err := s.ollama.GenerateDailyReport(ctx, *analysis)
 			if err != nil {
 				log.Warn().Err(err).Msg("Failed to generate AI-enhanced daily report, using fallback")
@@ -175,7 +175,7 @@ func (s *Scheduler) runWeeklyAnalysis(ctx context.Context) {
 
 	// Try to enhance with AI if available
 	if s.ollama != nil {
-		if isHealthy, _ := s.ollama.HealthCheck(ctx); isHealthy {
+		if err := s.ollama.HealthCheck(); err == nil {
 			aiMessage, err := s.ollama.GenerateFinancialInsight(ctx, *analysis)
 			if err != nil {
 				log.Warn().Err(err).Msg("Failed to generate AI-enhanced weekly analysis, using fallback")
@@ -197,11 +197,9 @@ func (s *Scheduler) runHealthCheck(ctx context.Context) {
 
 	// Check Ollama availability
 	if s.ollama != nil {
-		isHealthy, err := s.ollama.HealthCheck(ctx)
+		err := s.ollama.HealthCheck()
 		if err != nil {
 			log.Warn().Err(err).Msg("Ollama health check failed")
-		} else if !isHealthy {
-			log.Warn().Msg("Ollama is not available, using fallback analytics")
 		} else {
 			log.Debug().Msg("Ollama is healthy")
 		}

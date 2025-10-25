@@ -51,8 +51,8 @@ func (h *Handlers) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	// Check Ollama
 	ollamaHealthy := false
 	if h.ollama != nil {
-		if healthy, err := h.ollama.HealthCheck(ctx); err == nil {
-			ollamaHealthy = healthy
+		if err := h.ollama.HealthCheck(); err == nil {
+			ollamaHealthy = true
 		}
 	}
 
@@ -115,7 +115,7 @@ func (h *Handlers) AnalyzePeriod(w http.ResponseWriter, r *http.Request) {
 
 	// Try to enhance with AI if available
 	if h.ollama != nil {
-		if isHealthy, _ := h.ollama.HealthCheck(ctx); isHealthy {
+		if err := h.ollama.HealthCheck(); err == nil {
 			aiMessage, err := h.ollama.GenerateFinancialInsight(ctx, *analysis)
 			if err != nil {
 				log.Warn().Err(err).Msg("Failed to generate AI insights, using fallback")
@@ -243,7 +243,7 @@ func (h *Handlers) TriggerAnalysis(w http.ResponseWriter, r *http.Request) {
 
 	// Try to enhance with AI if available
 	if h.ollama != nil {
-		if isHealthy, _ := h.ollama.HealthCheck(ctx); isHealthy {
+		if err := h.ollama.HealthCheck(); err == nil {
 			aiMessage, err := h.ollama.GenerateFinancialInsight(ctx, *analysis)
 			if err != nil {
 				log.Warn().Err(err).Msg("Failed to generate AI insights")
@@ -260,14 +260,13 @@ func (h *Handlers) TriggerAnalysis(w http.ResponseWriter, r *http.Request) {
 
 // GetOllamaStatus returns Ollama service status
 func (h *Handlers) GetOllamaStatus(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
 
 	if h.ollama == nil {
 		http.Error(w, "Ollama not configured", http.StatusServiceUnavailable)
 		return
 	}
 
-	isHealthy, err := h.ollama.HealthCheck(ctx)
+	err := h.ollama.HealthCheck()
 	if err != nil {
 		log.Error().Err(err).Msg("Ollama health check failed")
 		http.Error(w, "Ollama health check failed", http.StatusInternalServerError)
@@ -275,7 +274,7 @@ func (h *Handlers) GetOllamaStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	status := map[string]interface{}{
-		"healthy": isHealthy,
+		"healthy": true,
 		"model":   "qwen2.5:0.5b",
 		"url":     "http://ollama:11434",
 	}

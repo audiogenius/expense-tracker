@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"analytics-service/internal/types"
-
-	"github.com/rs/zerolog/log"
 )
 
 // Client represents Ollama API client
@@ -122,26 +120,6 @@ func (c *Client) GenerateText(ctx context.Context, prompt string) (string, error
 	}
 
 	return ollamaResp.Response, nil
-}
-
-// HealthCheck checks if Ollama service is available
-func (c *Client) HealthCheck(ctx context.Context) (bool, error) {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+"/api/tags", nil)
-	if err != nil {
-		return false, fmt.Errorf("failed to create health check request: %w", err)
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		log.Warn().Err(err).Msg("Ollama health check failed")
-		return false, nil // Don't return error, just mark as unavailable
-	}
-	defer resp.Body.Close()
-
-	return resp.StatusCode == http.StatusOK, nil
 }
 
 // GenerateFinancialInsight generates financial insight using AI
