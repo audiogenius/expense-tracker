@@ -1,15 +1,14 @@
-import React, { useState, useEffect } from 'react'
-import { addExpense, fetchCategories, fetchSubcategories, fetchCategorySuggestions } from '../../api'
+import { useState, useEffect } from 'react'
+import { addExpense, fetchCategories, fetchSubcategories } from '../../api'
 import { CategoryAutocomplete } from '../Suggestions/CategoryAutocomplete'
 import type { Category, Subcategory, CategorySuggestion } from '../../types'
-import { formatCurrency } from '../../utils/helpers'
 
-type AddTransactionProps = {
+interface AddTransactionProps {
   token: string
   onTransactionAdded: () => void
 }
 
-export const AddTransaction: React.FC<AddTransactionProps> = ({ token, onTransactionAdded }) => {
+export const AddTransaction = ({ token, onTransactionAdded }: AddTransactionProps) => {
   const [amount, setAmount] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null)
   const [selectedSubcategory, setSelectedSubcategory] = useState<Subcategory | null>(null)
@@ -17,9 +16,6 @@ export const AddTransaction: React.FC<AddTransactionProps> = ({ token, onTransac
   const [subcategories, setSubcategories] = useState<Subcategory[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(false)
-  const [suggestions, setSuggestions] = useState<CategorySuggestion[]>([])
-  const [suggestionsLoading, setSuggestionsLoading] = useState(false)
-  const [showSuggestions, setShowSuggestions] = useState(false)
 
   useEffect(() => {
     loadCategories()
@@ -33,7 +29,6 @@ export const AddTransaction: React.FC<AddTransactionProps> = ({ token, onTransac
       setSelectedSubcategory(null)
     }
   }, [selectedCategory])
-
 
   const loadCategories = async () => {
     try {
@@ -53,31 +48,18 @@ export const AddTransaction: React.FC<AddTransactionProps> = ({ token, onTransac
     }
   }
 
-  const loadSuggestions = async (query: string) => {
-    try {
-      setSuggestionsLoading(true)
-      const data = await fetchCategorySuggestions(token, query)
-      setSuggestions(data)
-      setShowSuggestions(true)
-    } catch (error) {
-      console.error('Failed to load suggestions:', error)
-    } finally {
-      setSuggestionsLoading(false)
-    }
-  }
-
   const handleSuggestionSelect = (suggestion: CategorySuggestion) => {
     if (suggestion.type === 'category') {
-      const category = categories.find(c => c.id === suggestion.id)
+      const category = categories.find((c: Category) => c.id === suggestion.id)
       if (category) {
         setSelectedCategory(category)
         setSelectedSubcategory(null)
       }
     } else {
-      const subcategory = subcategories.find(s => s.id === suggestion.id)
+      const subcategory = subcategories.find((s: Subcategory) => s.id === suggestion.id)
       if (subcategory) {
         setSelectedSubcategory(subcategory)
-        setSelectedCategory(categories.find(c => c.id === subcategory.category_id) || null)
+        setSelectedCategory(categories.find((c: Category) => c.id === subcategory.category_id) || null)
       }
     }
     setSearchQuery('')
@@ -110,12 +92,6 @@ export const AddTransaction: React.FC<AddTransactionProps> = ({ token, onTransac
     } finally {
       setLoading(false)
     }
-  }
-
-  const formatAmount = (value: string) => {
-    const num = parseFloat(value)
-    if (isNaN(num)) return ''
-    return num.toFixed(2)
   }
 
   return (
@@ -173,13 +149,13 @@ export const AddTransaction: React.FC<AddTransactionProps> = ({ token, onTransac
             id="subcategory"
             value={selectedSubcategory?.id || ''}
             onChange={(e) => {
-              const subcategory = subcategories.find(s => s.id === parseInt(e.target.value))
+              const subcategory = subcategories.find((s: Subcategory) => s.id === parseInt(e.target.value))
               setSelectedSubcategory(subcategory || null)
             }}
             className="form-select"
           >
             <option value="">Выберите подкатегорию</option>
-            {subcategories.map((subcategory) => (
+            {subcategories.map((subcategory: Subcategory) => (
               <option key={subcategory.id} value={subcategory.id}>
                 {subcategory.name}
               </option>
