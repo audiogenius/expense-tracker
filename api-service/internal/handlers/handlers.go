@@ -98,6 +98,7 @@ type suggestionsCache struct {
 
 // Login accepts a Telegram widget payload (map[string]string), verifies it and returns a JWT
 func (h *Handlers) Login(w http.ResponseWriter, r *http.Request) {
+	log.Info().Msg("Login handler called")
 	var payload map[string]string
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)

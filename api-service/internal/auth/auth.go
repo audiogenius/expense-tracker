@@ -117,6 +117,12 @@ func (a *Auth) GetUserIDFromRequest(r *http.Request) (int64, error) {
 func (a *Auth) RequestLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Info().Str("method", r.Method).Str("path", r.URL.Path).Msg("incoming request")
+
+		// Log request body for debugging
+		if r.Method == "POST" && r.URL.Path == "/api/login" {
+			log.Info().Str("path", r.URL.Path).Msg("routing to Login handler")
+		}
+
 		next.ServeHTTP(w, r)
 	})
 }
