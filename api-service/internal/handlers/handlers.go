@@ -10,19 +10,19 @@ import (
 
 // Handlers holds dependencies for HTTP handlers
 type Handlers struct {
-	Auth        *auth.Auth
-	AuthHandler *AuthHandler
-	DB          *pgxpool.Pool
-	Cache       *cache.MemoryCache
+	Auth         *auth.Auth
+	AuthHandlers *AuthHandlers
+	DB           *pgxpool.Pool
+	Cache        *cache.MemoryCache
 }
 
 func NewHandlers(a *auth.Auth, db *pgxpool.Pool) *Handlers {
-	authHandler := NewAuthHandler(a, db)
+	authHandlers := NewAuthHandlers(a, db)
 	return &Handlers{
-		Auth:        a,
-		AuthHandler: authHandler,
-		DB:          db,
-		Cache:       cache.NewMemoryCache(),
+		Auth:         a,
+		AuthHandlers: authHandlers,
+		DB:           db,
+		Cache:        cache.NewMemoryCache(),
 	}
 }
 
@@ -30,9 +30,9 @@ func NewHandlers(a *auth.Auth, db *pgxpool.Pool) *Handlers {
 
 // Types moved to individual handler files to avoid duplication
 
-// Login delegates to AuthHandler for better separation of concerns
+// Login delegates to AuthHandlers for better separation of concerns
 func (h *Handlers) Login(w http.ResponseWriter, r *http.Request) {
-	h.AuthHandler.Login(w, r)
+	h.AuthHandlers.Login(w, r)
 }
 
 // AddExpense moved to expense_handlers.go
