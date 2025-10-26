@@ -56,8 +56,9 @@ func main() {
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok", "service": "api"})
 	})
 
-	// Public categories endpoint
+	// Public categories endpoint (both paths for compatibility)
 	r.Get("/categories", categoryHandlers.GetCategories)
+	r.Get("/api/categories", categoryHandlers.GetCategories)
 	r.Post("/categories/detect", categoryHandlers.DetectCategory)
 
 	// Internal bot endpoints (protected by X-BOT-KEY header)
@@ -95,9 +96,6 @@ func main() {
 		// Debts and balance
 		r.Get("/debts", debtHandlers.GetDebts)
 		r.Get("/balance", debtHandlers.GetBalance)
-
-		// Categories (protected version)
-		r.Get("/categories", categoryHandlers.GetCategories)
 	})
 
 	// Public login endpoint (must be after protected routes to avoid conflicts)
