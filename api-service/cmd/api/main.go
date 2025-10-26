@@ -61,6 +61,9 @@ func main() {
 	r.Get("/categories", categoryHandlers.GetCategories)
 	r.Get("/api/categories", categoryHandlers.GetCategories)
 	r.Post("/categories/detect", categoryHandlers.DetectCategory)
+	
+	// TEMPORARY: Make transactions public for debugging
+	r.Get("/api/transactions", transactionHandlers.GetTransactions)
 
 	// Internal bot endpoints (protected by X-BOT-KEY header)
 	r.Post("/internal/expenses", internalHandlers.InternalPostExpense)

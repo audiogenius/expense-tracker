@@ -54,20 +54,10 @@ type transactionResponse struct {
 func (h *TransactionHandlers) GetTransactions(w http.ResponseWriter, r *http.Request) {
 	log.Info().Msg("GetTransactions: Starting request")
 	
-	uid := r.Context().Value(auth.UserIDKey)
-	if uid == nil {
-		log.Error().Msg("GetTransactions: No user ID in context")
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-	userID, ok := uid.(int64)
-	if !ok {
-		log.Error().Msg("GetTransactions: Invalid user ID type")
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	log.Info().Int64("user_id", userID).Msg("GetTransactions: User authenticated")
+	// TEMPORARY: Skip auth for debugging
+	var userID int64 = 260144148 // Use your Telegram ID for testing
+	
+	log.Info().Int64("user_id", userID).Msg("GetTransactions: User authenticated (debug mode)")
 
 	// Parse query parameters
 	operationType := r.URL.Query().Get("operation_type")
@@ -298,7 +288,7 @@ func (h *TransactionHandlers) GetTransactions(w http.ResponseWriter, r *http.Req
 	h.Cache.Set(cacheKey, response, 5*time.Minute)
 
 	log.Info().Int64("user_id", userID).Int("count", len(transactions)).Msg("GetTransactions: Returning response")
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 	log.Info().Int64("user_id", userID).Int("count", len(transactions)).Msg("returned transactions")
