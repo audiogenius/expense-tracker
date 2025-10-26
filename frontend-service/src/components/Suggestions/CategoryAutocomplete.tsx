@@ -39,7 +39,7 @@ export const CategoryAutocomplete: React.FC<CategoryAutocompleteProps> = ({
     
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/suggestions/categories?query=${encodeURIComponent(query)}`,
+        `/api/suggestions/categories?query=${encodeURIComponent(query)}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -50,11 +50,12 @@ export const CategoryAutocomplete: React.FC<CategoryAutocompleteProps> = ({
 
       if (response.ok) {
         const data = await response.json()
-        setSuggestions(data)
-        setIsOpen(data.length > 0)
+        setSuggestions(data || [])
+        setIsOpen((data || []).length > 0)
         setHighlightedIndex(-1)
       } else {
-        console.error('Failed to fetch suggestions')
+        const errorText = await response.text()
+        console.error('Failed to fetch suggestions:', response.status, errorText)
         setSuggestions([])
         setIsOpen(false)
       }

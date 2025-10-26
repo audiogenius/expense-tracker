@@ -168,7 +168,7 @@ const App: React.FC = () => {
           />
 
           {/* Charts */}
-          {(expenses.length > 0 || incomes.length > 0) && (
+          {(filteredExpenses.length > 0 || incomes.length > 0) && (
             <div className="charts-grid">
               <ExpenseLineChart 
                 expenses={filteredExpenses} 
@@ -178,7 +178,9 @@ const App: React.FC = () => {
                 onChartTypeChange={setChartType}
                 onChartPeriodChange={setChartPeriod}
               />
-              <CategoryPieChart expenses={filteredExpenses} categories={categories} />
+              {filteredExpenses.length > 0 && (
+                <CategoryPieChart expenses={filteredExpenses} categories={categories} />
+              )}
             </div>
           )}
         </div>
