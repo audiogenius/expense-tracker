@@ -65,6 +65,7 @@ func (h *TransactionHandlers) GetTransactions(w http.ResponseWriter, r *http.Req
 	subcategoryID := r.URL.Query().Get("subcategory_id")
 	startDate := r.URL.Query().Get("start_date")
 	endDate := r.URL.Query().Get("end_date")
+	scope := r.URL.Query().Get("scope") // Filter: all, personal, family
 	cursor := r.URL.Query().Get("cursor") // timestamp for keyset pagination
 	limitStr := r.URL.Query().Get("limit")
 
@@ -77,8 +78,8 @@ func (h *TransactionHandlers) GetTransactions(w http.ResponseWriter, r *http.Req
 	}
 
 	// Check cache first
-	cacheKey := fmt.Sprintf("transactions_%d_%s_%s_%s_%s_%s_%s",
-		userID, operationType, categoryID, subcategoryID, startDate, endDate, cursor)
+	cacheKey := fmt.Sprintf("transactions_%d_%s_%s_%s_%s_%s_%s_%s",
+		userID, operationType, categoryID, subcategoryID, startDate, endDate, scope, cursor)
 
 	if cached, found := h.Cache.Get(cacheKey); found {
 		w.Header().Set("Content-Type", "application/json")
@@ -136,30 +137,59 @@ func (h *TransactionHandlers) GetTransactions(w http.ResponseWriter, r *http.Req
 	var userGroupIDs []int64
 	groupRows, err := h.DB.Query(r.Context(),
 		"SELECT group_id FROM group_members WHERE user_id = $1", userID)
-	if err == nil {
+	if err != nil {
+		// Log error but continue - user might not be in any groups yet
+		log.Warn().Err(err).Int64("user_id", userID).Msg("failed to query group_members, continuing without group filtering")
+	} else {
 		defer groupRows.Close()
 		for groupRows.Next() {
 			var groupID int64
-			if err := groupRows.Scan(&groupID); err == nil {
-				userGroupIDs = append(userGroupIDs, groupID)
+			if err := groupRows.Scan(&groupID); err != nil {
+				log.Warn().Err(err).Int64("user_id", userID).Msg("failed to scan group_id, skipping")
+				continue
 			}
+			userGroupIDs = append(userGroupIDs, groupID)
+		}
+		// Check for iteration errors
+		if err := groupRows.Err(); err != nil {
+			log.Warn().Err(err).Int64("user_id", userID).Msg("error during group_members iteration")
 		}
 	}
 
-	// Filter by user's own expenses OR group expenses (excluding private expenses from others)
-	// Logic: Show my expenses (all) + group expenses that are not private
-	if len(userGroupIDs) > 0 {
-		// User is in groups: show own expenses + non-private group expenses
-		whereConditions = append(whereConditions, fmt.Sprintf(
-			"(e.user_id = $%d OR (e.group_id = ANY($%d) AND e.is_private = false))",
-			argIndex, argIndex+1))
-		args = append(args, userID, userGroupIDs)
-		argIndex += 2
-	} else {
-		// User not in any group: show only own expenses
+	// Apply scope filter (personal, family, all)
+	switch scope {
+	case "personal":
+		// Show only user's own expenses
 		whereConditions = append(whereConditions, fmt.Sprintf("e.user_id = $%d", argIndex))
 		args = append(args, userID)
 		argIndex++
+	case "family":
+		// Show only group expenses (non-private) that user is a member of
+		if len(userGroupIDs) > 0 {
+			whereConditions = append(whereConditions, fmt.Sprintf(
+				"(e.group_id = ANY($%d) AND e.is_private = false AND e.user_id != $%d)",
+				argIndex, argIndex+1))
+			args = append(args, userGroupIDs, userID)
+			argIndex += 2
+		} else {
+			// User not in any group, return empty result
+			whereConditions = append(whereConditions, "1=0")
+		}
+	default:
+		// "all" or empty: show user's own expenses + group expenses (non-private)
+		if len(userGroupIDs) > 0 {
+			// User is in groups: show own expenses + non-private group expenses
+			whereConditions = append(whereConditions, fmt.Sprintf(
+				"(e.user_id = $%d OR (e.group_id = ANY($%d) AND e.is_private = false))",
+				argIndex, argIndex+1))
+			args = append(args, userID, userGroupIDs)
+			argIndex += 2
+		} else {
+			// User not in any group: show only own expenses
+			whereConditions = append(whereConditions, fmt.Sprintf("e.user_id = $%d", argIndex))
+			args = append(args, userID)
+			argIndex++
+		}
 	}
 
 	// Add keyset pagination condition

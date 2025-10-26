@@ -51,10 +51,17 @@ func postExpenseWithCategory(apiURL string, botKey string, telegramID int64, use
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
+		fmt.Printf("❌ [ERROR] Failed to post expense for user %d: %v\n", telegramID, err)
 		return 0, err
 	}
 	defer resp.Body.Close()
 	io.Copy(io.Discard, resp.Body)
+	
+	if resp.StatusCode != http.StatusCreated {
+		fmt.Printf("⚠️ [WARN] Unexpected status code %d when posting expense for user %d\n", resp.StatusCode, telegramID)
+	} else {
+		fmt.Printf("✅ [INFO] Successfully posted expense: user=%d, amount=%.2f, group=%v\n", telegramID, amount, groupID != nil)
+	}
 	return resp.StatusCode, nil
 }
 
@@ -607,10 +614,17 @@ func registerGroup(apiURL, botKey string, groupID int64, groupName, groupType st
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
+		fmt.Printf("❌ [ERROR] Failed to register group %d: %v\n", groupID, err)
 		return
 	}
 	defer resp.Body.Close()
 	io.Copy(io.Discard, resp.Body)
+	
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		fmt.Printf("⚠️ [WARN] Unexpected status %d when registering group %d\n", resp.StatusCode, groupID)
+	} else {
+		fmt.Printf("✅ [INFO] Registered group: id=%d, name=%s, type=%s\n", groupID, groupName, groupType)
+	}
 }
 
 func registerGroupMember(apiURL, botKey string, groupID, userID int64, username string) {
@@ -628,8 +642,15 @@ func registerGroupMember(apiURL, botKey string, groupID, userID int64, username 
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
+		fmt.Printf("❌ [ERROR] Failed to register group member: group=%d, user=%d: %v\n", groupID, userID, err)
 		return
 	}
 	defer resp.Body.Close()
 	io.Copy(io.Discard, resp.Body)
+	
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		fmt.Printf("⚠️ [WARN] Unexpected status %d when registering member: group=%d, user=%d\n", resp.StatusCode, groupID, userID)
+	} else {
+		fmt.Printf("✅ [INFO] Registered group member: group=%d, user=%d (%s)\n", groupID, userID, username)
+	}
 }

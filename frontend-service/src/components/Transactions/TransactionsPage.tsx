@@ -169,6 +169,19 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({ token }) => 
           </div>
 
           <div className="filter-group">
+            <label>Владелец</label>
+            <select
+              value={filters.scope || 'all'}
+              onChange={(e) => handleFilterChange('scope', e.target.value)}
+              className="filter-select"
+            >
+              <option value="all">Все</option>
+              <option value="personal">Мои</option>
+              <option value="family">Семейные</option>
+            </select>
+          </div>
+
+          <div className="filter-group">
             <label>Категория</label>
             <select
               value={filters.category_id || ''}

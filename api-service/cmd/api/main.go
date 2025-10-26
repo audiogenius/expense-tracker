@@ -42,6 +42,7 @@ func main() {
 	transactionHandlers := handlers.NewTransactionHandlers(pool, a)
 	categoryHandlers := handlers.NewCategoryHandlers(pool)
 	debtHandlers := handlers.NewDebtHandlers(pool, a)
+	familyHandlers := handlers.NewFamilyHandlers(pool, a)
 	internalHandlers := handlers.NewInternalHandlers(pool)
 
 	r := chi.NewRouter()
@@ -98,6 +99,9 @@ func main() {
 		// Debts and balance
 		r.Get("/debts", debtHandlers.GetDebts)
 		r.Get("/balance", debtHandlers.GetBalance)
+
+		// Family/Groups endpoints
+		r.Get("/family/groups", familyHandlers.GetFamilyGroups)
 
 		// Analytics endpoints (proxy to analytics-service)
 		r.Get("/analytics/health", func(w http.ResponseWriter, r *http.Request) {

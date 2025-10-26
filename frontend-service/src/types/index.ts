@@ -61,6 +61,7 @@ export type TransactionFilters = {
   page?: number
   limit?: number
   cursor?: string // For keyset pagination
+  scope?: 'all' | 'personal' | 'family' // Filter by ownership
 }
 
 export type TransactionResponse = {
