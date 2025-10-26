@@ -31,8 +31,8 @@ func NewTransactionHandlers(db *pgxpool.Pool, auth *auth.Auth) *TransactionHandl
 		Cache:            cache.NewMemoryCache(),
 		SuggestionsCache: make(map[int]suggestionsCache),
 		Auth:             auth,
-		Queries:          NewTransactionQueries(db),
-		Validator:        NewTransactionValidator(),
+		Queries:          &TransactionQueries{DB: db},
+		Validator:        &TransactionValidator{},
 	}
 }
 
