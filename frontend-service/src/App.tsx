@@ -28,6 +28,7 @@ import { RecentTransactions } from './components/Transactions/RecentTransactions
 import { AddTransaction } from './components/Transactions/AddTransaction'
 import { TransactionsPage } from './components/Transactions/TransactionsPage'
 import { CategoriesPage } from './components/Categories/CategoriesPage'
+import { SettingsPage } from './components/Settings/SettingsPage'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement)
 
@@ -49,7 +50,7 @@ const App: React.FC = () => {
   const [filterCategory, setFilterCategory] = useState<number | null>(null)
   const [filterPeriod, setFilterPeriod] = useState<Period>('all')
   const [customPeriod, setCustomPeriod] = useState<CustomPeriod | undefined>(undefined)
-  const [currentPage, setCurrentPage] = useState<'dashboard' | 'transactions' | 'categories'>('dashboard')
+  const [currentPage, setCurrentPage] = useState<'dashboard' | 'transactions' | 'categories' | 'settings'>('dashboard')
   
   // Chart settings
   const [chartType, setChartType] = useState<ChartType>('expenses')
@@ -115,6 +116,10 @@ const App: React.FC = () => {
     setCurrentPage('categories')
   }
 
+  const handleViewSettings = () => {
+    setCurrentPage('settings')
+  }
+
   const handleBackToDashboard = () => {
     setCurrentPage('dashboard')
   }
@@ -146,7 +151,7 @@ const App: React.FC = () => {
   if (currentPage === 'transactions') {
     return (
       <div className="app-center">
-        <Header profile={profile} onLogout={handleLogout} />
+        <Header profile={profile} onLogout={handleLogout} onSettings={handleViewSettings} />
         <div className="page-header">
           <button onClick={handleBackToDashboard} className="back-btn">
             ← Назад к дашборду
@@ -160,7 +165,7 @@ const App: React.FC = () => {
   if (currentPage === 'categories') {
     return (
       <div className="app-center">
-        <Header profile={profile} onLogout={handleLogout} />
+        <Header profile={profile} onLogout={handleLogout} onSettings={handleViewSettings} />
         <div className="page-header">
           <button onClick={handleBackToDashboard} className="back-btn">
             ← Назад к дашборду
@@ -171,9 +176,18 @@ const App: React.FC = () => {
     )
   }
 
+  if (currentPage === 'settings') {
+    return (
+      <div className="app-center">
+        <Header profile={profile} onLogout={handleLogout} />
+        <SettingsPage token={token!} onBack={handleBackToDashboard} />
+      </div>
+    )
+  }
+
   return (
     <div className="app-center">
-      <Header profile={profile} onLogout={handleLogout} />
+      <Header profile={profile} onLogout={handleLogout} onSettings={handleViewSettings} />
 
       <div className="main-grid">
         {/* LEFT COLUMN */}

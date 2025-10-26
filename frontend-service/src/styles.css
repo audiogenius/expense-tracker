@@ -9,6 +9,7 @@
 @import './styles/modules/charts.css';
 @import './styles/modules/transactions.css';
 @import './styles/modules/categories.css';
+@import './styles/modules/settings.css';
 @import './styles/modules/add-transaction.css';
 @import './styles/modules/autocomplete.css';
 @import './styles/modules/performance.css';

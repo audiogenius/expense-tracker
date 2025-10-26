@@ -4,9 +4,10 @@ import type { Profile } from '../../types'
 type HeaderProps = {
   profile: Profile | null
   onLogout: () => void
+  onSettings?: () => void
 }
 
-export const Header: React.FC<HeaderProps> = ({ profile, onLogout }) => {
+export const Header: React.FC<HeaderProps> = ({ profile, onLogout, onSettings }) => {
   return (
     <div className="header-bar">
       <div className="header-left">
@@ -22,9 +23,16 @@ export const Header: React.FC<HeaderProps> = ({ profile, onLogout }) => {
           </div>
         )}
       </div>
-      <button onClick={onLogout} className="logout-btn" title="Выход">
-        ✕
-      </button>
+      <div className="header-actions">
+        {onSettings && (
+          <button onClick={onSettings} className="settings-btn" title="Настройки">
+            ⚙️
+          </button>
+        )}
+        <button onClick={onLogout} className="logout-btn" title="Выход">
+          ✕
+        </button>
+      </div>
     </div>
   )
 }
