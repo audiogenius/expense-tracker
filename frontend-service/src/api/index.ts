@@ -89,6 +89,12 @@ export const addExpense = async (
   }, {
     headers: { Authorization: `Bearer ${token}` }
   })
+  
+  // Clear cache after adding transaction
+  apiCache.clearPattern('/api/transactions')
+  apiCache.clearPattern('/api/expenses')
+  apiCache.clearPattern('/api/incomes')
+  apiCache.clearPattern('/api/balance')
 }
 
 // Incomes

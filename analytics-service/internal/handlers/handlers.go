@@ -283,3 +283,88 @@ func (h *Handlers) GetOllamaStatus(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(status)
 }
+
+// GetSummary generates AI summary for a user's expenses
+func (h *Handlers) GetSummary(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var req struct {
+		TelegramID int64  `json:"telegram_id"`
+		Period     string `json:"period"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.TelegramID == 0 {
+		http.Error(w, "telegram_id required", http.StatusBadRequest)
+		return
+	}
+
+	if req.Period == "" {
+		req.Period = "day"
+	}
+
+	// Calculate date range
+	now := time.Now()
+	var startDate, endDate time.Time
+
+	switch req.Period {
+	case "week":
+		startDate = now.AddDate(0, 0, -7)
+		endDate = now
+	case "month":
+		startDate = now.AddDate(0, -1, 0)
+		endDate = now
+	default:
+		startDate = now.AddDate(0, 0, -1)
+		endDate = now
+	}
+
+	// Perform analysis
+	analysis, err := h.analytics.AnalyzePeriod(ctx, req.Period, startDate, endDate)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to analyze period for summary")
+		http.Error(w, "Failed to analyze period", http.StatusInternalServerError)
+		return
+	}
+
+	// Generate AI summary if available
+	summary := "Анализ за период:\n\n"
+	if analysis.TotalExpenses > 0 {
+		summary += "💸 Расходы: " + strconv.FormatFloat(analysis.TotalExpenses/100, 'f', 2, 64) + " руб.\n"
+	}
+	if analysis.TotalIncome > 0 {
+		summary += "💰 Доходы: " + strconv.FormatFloat(analysis.TotalIncome/100, 'f', 2, 64) + " руб.\n"
+	}
+	balance := analysis.TotalIncome - analysis.TotalExpenses
+	if balance >= 0 {
+		summary += "✅ Баланс: +" + strconv.FormatFloat(balance/100, 'f', 2, 64) + " руб.\n"
+	} else {
+		summary += "⚠️ Баланс: " + strconv.FormatFloat(balance/100, 'f', 2, 64) + " руб.\n"
+	}
+
+	// Try to enhance with AI if available
+	if h.ollama != nil {
+		if err := h.ollama.HealthCheck(); err == nil {
+			aiMessage, err := h.ollama.GenerateFinancialInsight(ctx, *analysis)
+			if err != nil {
+				log.Warn().Err(err).Msg("Failed to generate AI insights, using fallback")
+			} else {
+				summary += "\n🤖 AI Инсайты:\n" + aiMessage
+			}
+		}
+	}
+
+	response := map[string]interface{}{
+		"summary":  summary,
+		"period":   req.Period,
+		"analysis": analysis,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
+}

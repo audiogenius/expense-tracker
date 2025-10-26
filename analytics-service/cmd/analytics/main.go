@@ -191,5 +191,8 @@ func setupRouter(handlers *handlers.Handlers) *chi.Mux {
 		r.Get("/ollama/status", handlers.GetOllamaStatus)
 	})
 
+	// Direct summary endpoint (for bot compatibility)
+	r.Post("/summary", handlers.GetSummary)
+
 	return r
 }
