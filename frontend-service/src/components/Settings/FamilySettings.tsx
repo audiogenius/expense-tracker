@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { fetchFamilyGroups } from '../../api'
 
 type FamilySettingsProps = {
   token: string
@@ -7,16 +8,17 @@ type FamilySettingsProps = {
 type GroupMember = {
   user_id: number
   username: string
-  role: string
-  joined_at: string
 }
 
 type TelegramGroup = {
-  id: number
-  name: string
-  type: string
-  created_at: string
+  group_id: number
+  group_name: string
+  chat_type: string
   members: GroupMember[]
+}
+
+type FamilyGroupsResponse = {
+  groups: TelegramGroup[]
 }
 
 export const FamilySettings: React.FC<FamilySettingsProps> = ({ token }) => {
@@ -32,15 +34,8 @@ export const FamilySettings: React.FC<FamilySettingsProps> = ({ token }) => {
     try {
       setLoading(true)
       setError(null)
-      // TODO: Implement API endpoint GET /api/family/groups
-      // const response = await fetch('/api/family/groups', {
-      //   headers: { 'Authorization': `Bearer ${token}` }
-      // })
-      // const data = await response.json()
-      // setGroups(data)
-      
-      // Временные данные для демонстрации
-      setGroups([])
+      const response: FamilyGroupsResponse = await fetchFamilyGroups(token)
+      setGroups(response.groups || [])
     } catch (err) {
       setError('Не удалось загрузить данные о семье')
       console.error('Failed to load groups:', err)
@@ -99,10 +94,10 @@ export const FamilySettings: React.FC<FamilySettingsProps> = ({ token }) => {
       ) : (
         <div className="groups-list">
           {groups.map((group) => (
-            <div key={group.id} className="group-card">
+            <div key={group.group_id} className="group-card">
               <div className="group-header">
-                <h3>{group.name}</h3>
-                <span className="group-type">{group.type}</span>
+                <h3>{group.group_name}</h3>
+                <span className="group-type">{group.chat_type}</span>
               </div>
               
               <div className="group-members">
@@ -112,11 +107,7 @@ export const FamilySettings: React.FC<FamilySettingsProps> = ({ token }) => {
                     <div key={member.user_id} className="member-item">
                       <div className="member-info">
                         <span className="member-name">@{member.username}</span>
-                        <span className="member-role">{member.role}</span>
                       </div>
-                      <span className="member-joined">
-                        С {new Date(member.joined_at).toLocaleDateString('ru-RU')}
-                      </span>
                     </div>
                   ))}
                 </div>

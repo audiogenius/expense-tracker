@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { fetchTransactions } from '../../api'
+import { useState, useEffect } from 'react'
+import { fetchTransactions, softDeleteTransaction, restoreTransaction, fetchDeletedTransactions } from '../../api'
 import type { Transaction, TransactionFilters } from '../../types'
 import { formatCurrency, formatDate } from '../../utils/helpers'
 
@@ -7,11 +7,23 @@ type TransactionManagementProps = {
   token: string
 }
 
+type DeletedTransaction = Transaction & {
+  deleted_at: string
+}
+
 export const TransactionManagement: React.FC<TransactionManagementProps> = ({ token }) => {
   const [searchQuery, setSearchQuery] = useState('')
   const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [deletedTransactions, setDeletedTransactions] = useState<DeletedTransaction[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
+  const [activeTab, setActiveTab] = useState<'search' | 'deleted'>('search')
+
+  useEffect(() => {
+    if (activeTab === 'deleted') {
+      loadDeletedTransactions()
+    }
+  }, [activeTab])
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return
@@ -44,26 +56,52 @@ export const TransactionManagement: React.FC<TransactionManagementProps> = ({ to
     }
   }
 
+  const loadDeletedTransactions = async () => {
+    try {
+      setLoading(true)
+      const response = await fetchDeletedTransactions(token)
+      setDeletedTransactions(response.transactions || [])
+    } catch (error) {
+      console.error('Failed to load deleted transactions:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleDelete = async (transaction: Transaction) => {
     if (!confirm(`Удалить операцию на ${formatCurrency(transaction.amount_cents)}?`)) {
       return
     }
 
     try {
-      // TODO: Implement soft delete API endpoint
-      // await fetch(`/api/transactions/${transaction.id}`, {
-      //   method: 'DELETE',
-      //   headers: { 'Authorization': `Bearer ${token}` }
-      // })
-      
-      alert('⚠️ Функция удаления будет доступна в следующей версии')
+      await softDeleteTransaction(token, transaction.id)
       
       // Обновляем список
       setTransactions(transactions.filter(t => t.id !== transaction.id))
       setSelectedTransaction(null)
+      
+      alert('✅ Операция удалена')
     } catch (error) {
       console.error('Failed to delete transaction:', error)
       alert('Не удалось удалить операцию')
+    }
+  }
+
+  const handleRestore = async (transaction: DeletedTransaction) => {
+    if (!confirm(`Восстановить операцию на ${formatCurrency(transaction.amount_cents)}?`)) {
+      return
+    }
+
+    try {
+      await restoreTransaction(token, transaction.id)
+      
+      // Обновляем список
+      setDeletedTransactions(deletedTransactions.filter(t => t.id !== transaction.id))
+      
+      alert('✅ Операция восстановлена')
+    } catch (error) {
+      console.error('Failed to restore transaction:', error)
+      alert('Не удалось восстановить операцию')
     }
   }
 
@@ -84,27 +122,44 @@ export const TransactionManagement: React.FC<TransactionManagementProps> = ({ to
         </p>
       </div>
 
-      <div className="search-section">
-        <div className="search-input-group">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-            placeholder="Поиск по категории, сумме или дате..."
-            className="search-input"
-          />
-          <button 
-            onClick={handleSearch} 
-            disabled={loading || !searchQuery.trim()}
-            className="search-btn"
-          >
-            {loading ? '⏳' : '🔍'} Найти
-          </button>
-        </div>
+      <div className="management-tabs">
+        <button 
+          className={`tab ${activeTab === 'search' ? 'active' : ''}`}
+          onClick={() => setActiveTab('search')}
+        >
+          🔍 Поиск операций
+        </button>
+        <button 
+          className={`tab ${activeTab === 'deleted' ? 'active' : ''}`}
+          onClick={() => setActiveTab('deleted')}
+        >
+          🗑️ Удаленные ({deletedTransactions.length})
+        </button>
       </div>
 
-      {transactions.length > 0 && (
+      {activeTab === 'search' && (
+        <div className="search-section">
+          <div className="search-input-group">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+              placeholder="Поиск по категории, сумме или дате..."
+              className="search-input"
+            />
+            <button 
+              onClick={handleSearch} 
+              disabled={loading || !searchQuery.trim()}
+              className="search-btn"
+            >
+              {loading ? '⏳' : '🔍'} Найти
+            </button>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'search' && transactions.length > 0 && (
         <div className="search-results">
           <div className="results-header">
             <h3>Найдено операций: {transactions.length}</h3>
@@ -154,7 +209,69 @@ export const TransactionManagement: React.FC<TransactionManagementProps> = ({ to
         </div>
       )}
 
-      {transactions.length === 0 && searchQuery && !loading && (
+      {activeTab === 'deleted' && (
+        <div className="deleted-transactions">
+          <div className="results-header">
+            <h3>Удаленные операции: {deletedTransactions.length}</h3>
+            <button 
+              onClick={loadDeletedTransactions}
+              className="refresh-btn"
+              disabled={loading}
+            >
+              {loading ? '⏳' : '🔄'} Обновить
+            </button>
+          </div>
+          
+          {deletedTransactions.length > 0 ? (
+            <div className="transactions-grid">
+              {deletedTransactions.map((transaction) => (
+                <div 
+                  key={transaction.id} 
+                  className="transaction-card deleted"
+                >
+                  <div className="transaction-icon" style={{ color: getTransactionColor(transaction.operation_type) }}>
+                    {getTransactionIcon(transaction.operation_type)}
+                  </div>
+                  
+                  <div className="transaction-details">
+                    <div className="transaction-amount" style={{ color: getTransactionColor(transaction.operation_type) }}>
+                      {transaction.operation_type === 'expense' ? '-' : '+'}{formatCurrency(transaction.amount_cents)}
+                    </div>
+                    <div className="transaction-info">
+                      <div className="transaction-category">
+                        {transaction.subcategory_name || transaction.category_name || 'Без категории'}
+                      </div>
+                      <div className="transaction-meta">
+                        <span className="transaction-user">{transaction.username}</span>
+                        <span className="transaction-date">{formatDate(transaction.timestamp)}</span>
+                        <span className="deleted-date">Удалено: {formatDate(transaction.deleted_at)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="transaction-actions">
+                    <button
+                      onClick={() => handleRestore(transaction)}
+                      className="restore-btn"
+                      title="Восстановить операцию"
+                    >
+                      ♻️
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">
+              <div className="empty-state-icon">🗑️</div>
+              <h3>Нет удаленных операций</h3>
+              <p>Удаленные операции будут отображаться здесь</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'search' && transactions.length === 0 && searchQuery && !loading && (
         <div className="empty-state">
           <div className="empty-state-icon">🔍</div>
           <h3>Ничего не найдено</h3>
@@ -162,7 +279,7 @@ export const TransactionManagement: React.FC<TransactionManagementProps> = ({ to
         </div>
       )}
 
-      {!searchQuery && (
+      {activeTab === 'search' && !searchQuery && (
         <div className="info-box">
           <h4>💡 Как использовать:</h4>
           <ul>
@@ -173,10 +290,9 @@ export const TransactionManagement: React.FC<TransactionManagementProps> = ({ to
             <li>Кликните на операцию и нажмите 🗑️ для удаления</li>
           </ul>
           
-          <div className="warning-box">
-            <strong>⚠️ Внимание:</strong> Удаление операций необратимо. 
-            В будущих версиях будет добавлена возможность "мягкого удаления" 
-            с возможностью восстановления.
+          <div className="info-box">
+            <strong>✅ Мягкое удаление:</strong> Удаленные операции можно восстановить 
+            во вкладке "Удаленные". Они не отображаются в основных списках.
           </div>
         </div>
       )}

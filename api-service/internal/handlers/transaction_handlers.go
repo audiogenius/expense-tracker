@@ -92,6 +92,9 @@ func (h *TransactionHandlers) GetTransactions(w http.ResponseWriter, r *http.Req
 	var args []interface{}
 	argIndex := 1
 
+	// Always exclude soft-deleted transactions
+	whereConditions = append(whereConditions, "e.deleted_at IS NULL")
+
 	// Operation type filter
 	if operationType != "" && operationType != "both" {
 		whereConditions = append(whereConditions, fmt.Sprintf("e.operation_type = $%d", argIndex))
@@ -287,4 +290,195 @@ func (h *TransactionHandlers) GetTransactions(w http.ResponseWriter, r *http.Req
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 	log.Info().Int64("user_id", userID).Int("count", len(transactions)).Msg("returned transactions")
+}
+
+// SoftDeleteTransaction marks a transaction as deleted
+func (h *TransactionHandlers) SoftDeleteTransaction(w http.ResponseWriter, r *http.Request) {
+	uid := r.Context().Value(auth.UserIDKey)
+	if uid == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	userID, ok := uid.(int64)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Get transaction ID from URL path
+	transactionIDStr := r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]
+	transactionID, err := strconv.Atoi(transactionIDStr)
+	if err != nil {
+		http.Error(w, "invalid transaction id", http.StatusBadRequest)
+		return
+	}
+
+	// Check if transaction exists and belongs to user
+	var exists bool
+	err = h.DB.QueryRow(r.Context(),
+		"SELECT EXISTS(SELECT 1 FROM expenses WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL)",
+		transactionID, userID).Scan(&exists)
+	if err != nil || !exists {
+		http.Error(w, "transaction not found", http.StatusNotFound)
+		return
+	}
+
+	// Soft delete the transaction
+	_, err = h.DB.Exec(r.Context(),
+		"UPDATE expenses SET deleted_at = NOW() WHERE id = $1 AND user_id = $2",
+		transactionID, userID)
+	if err != nil {
+		log.Error().Err(err).Int64("user_id", userID).Int("transaction_id", transactionID).Msg("failed to soft delete transaction")
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	// Clear cache
+	h.Cache.Clear()
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
+	log.Info().Int64("user_id", userID).Int("transaction_id", transactionID).Msg("transaction soft deleted")
+}
+
+// RestoreTransaction restores a soft-deleted transaction
+func (h *TransactionHandlers) RestoreTransaction(w http.ResponseWriter, r *http.Request) {
+	uid := r.Context().Value(auth.UserIDKey)
+	if uid == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	userID, ok := uid.(int64)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Get transaction ID from URL path
+	transactionIDStr := r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]
+	transactionID, err := strconv.Atoi(transactionIDStr)
+	if err != nil {
+		http.Error(w, "invalid transaction id", http.StatusBadRequest)
+		return
+	}
+
+	// Check if transaction exists and belongs to user
+	var exists bool
+	err = h.DB.QueryRow(r.Context(),
+		"SELECT EXISTS(SELECT 1 FROM expenses WHERE id = $1 AND user_id = $2 AND deleted_at IS NOT NULL)",
+		transactionID, userID).Scan(&exists)
+	if err != nil || !exists {
+		http.Error(w, "deleted transaction not found", http.StatusNotFound)
+		return
+	}
+
+	// Restore the transaction
+	_, err = h.DB.Exec(r.Context(),
+		"UPDATE expenses SET deleted_at = NULL WHERE id = $1 AND user_id = $2",
+		transactionID, userID)
+	if err != nil {
+		log.Error().Err(err).Int64("user_id", userID).Int("transaction_id", transactionID).Msg("failed to restore transaction")
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	// Clear cache
+	h.Cache.Clear()
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "restored"})
+	log.Info().Int64("user_id", userID).Int("transaction_id", transactionID).Msg("transaction restored")
+}
+
+// GetDeletedTransactions returns soft-deleted transactions for management
+func (h *TransactionHandlers) GetDeletedTransactions(w http.ResponseWriter, r *http.Request) {
+	uid := r.Context().Value(auth.UserIDKey)
+	if uid == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	userID, ok := uid.(int64)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Parse query parameters
+	limitStr := r.URL.Query().Get("limit")
+	limit := 50
+	if limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 100 {
+			limit = l
+		}
+	}
+
+	// Query deleted transactions
+	query := `
+		SELECT e.id, e.user_id, e.amount_cents, e.category_id, e.subcategory_id, 
+			   e.operation_type, e.timestamp, e.is_shared, e.deleted_at, u.username,
+			   c.name as category_name, s.name as subcategory_name
+		FROM expenses e
+		LEFT JOIN users u ON u.telegram_id = e.user_id
+		LEFT JOIN categories c ON e.category_id = c.id
+		LEFT JOIN subcategories s ON e.subcategory_id = s.id
+		WHERE e.user_id = $1 AND e.deleted_at IS NOT NULL
+		ORDER BY e.deleted_at DESC
+		LIMIT $2
+	`
+
+	rows, err := h.DB.Query(r.Context(), query, userID, limit)
+	if err != nil {
+		log.Error().Err(err).Msg("select deleted transactions")
+		http.Error(w, "internal", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var transactions []map[string]interface{}
+	for rows.Next() {
+		var t transactionResponse
+		var ts, deletedAt time.Time
+		var username *string
+		var categoryName *string
+		var subcategoryName *string
+
+		if err := rows.Scan(&t.ID, &t.UserID, &t.AmountCents, &t.CategoryID, &t.SubcategoryID,
+			&t.OperationType, &ts, &t.IsShared, &deletedAt, &username, &categoryName, &subcategoryName); err == nil {
+			t.Timestamp = ts.UTC().Format(time.RFC3339)
+			if username != nil {
+				t.Username = *username
+			}
+			if categoryName != nil {
+				t.CategoryName = categoryName
+			}
+			if subcategoryName != nil {
+				t.SubcategoryName = subcategoryName
+			}
+
+			transaction := map[string]interface{}{
+				"id":              t.ID,
+				"user_id":         t.UserID,
+				"amount_cents":    t.AmountCents,
+				"category_id":     t.CategoryID,
+				"subcategory_id":  t.SubcategoryID,
+				"operation_type":  t.OperationType,
+				"timestamp":       t.Timestamp,
+				"is_shared":       t.IsShared,
+				"username":        t.Username,
+				"category_name":   t.CategoryName,
+				"subcategory_name": t.SubcategoryName,
+				"deleted_at":      deletedAt.UTC().Format(time.RFC3339),
+			}
+			transactions = append(transactions, transaction)
+		}
+	}
+
+	response := map[string]interface{}{
+		"transactions": transactions,
+		"count":        len(transactions),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+	log.Info().Int64("user_id", userID).Int("count", len(transactions)).Msg("returned deleted transactions")
 }

@@ -237,3 +237,41 @@ export const fetchCategorySuggestions = async (
   return res.data || []
 }
 
+// Family Groups
+export const fetchFamilyGroups = async (token: string) => {
+  const res = await axios.get(`${API_BASE}/family/groups`, {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+  return res.data
+}
+
+// Soft Delete Transactions
+export const softDeleteTransaction = async (token: string, transactionId: number) => {
+  await axios.delete(`${API_BASE}/transactions/${transactionId}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+  // Clear cache after deletion
+  apiCache.clearPattern('/api/transactions')
+  apiCache.clearPattern('/api/expenses')
+  apiCache.clearPattern('/api/incomes')
+  apiCache.clearPattern('/api/balance')
+}
+
+export const restoreTransaction = async (token: string, transactionId: number) => {
+  await axios.post(`${API_BASE}/transactions/${transactionId}/restore`, {}, {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+  // Clear cache after restoration
+  apiCache.clearPattern('/api/transactions')
+  apiCache.clearPattern('/api/expenses')
+  apiCache.clearPattern('/api/incomes')
+  apiCache.clearPattern('/api/balance')
+}
+
+export const fetchDeletedTransactions = async (token: string, limit: number = 50) => {
+  const res = await axios.get(`${API_BASE}/transactions/deleted?limit=${limit}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+  return res.data
+}
+
