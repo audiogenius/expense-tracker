@@ -131,10 +131,22 @@ const App: React.FC = () => {
     if (filterPeriod !== 'all') {
       const expenseDate = new Date(e.timestamp)
       const now = new Date()
-      const daysDiff = (now.getTime() - expenseDate.getTime()) / (1000 * 60 * 60 * 24)
 
-      if (filterPeriod === 'week' && daysDiff > 7) return false
-      if (filterPeriod === 'month' && daysDiff > 30) return false
+      if (filterPeriod === 'day') {
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        if (expenseDate < today) return false
+      } else if (filterPeriod === 'week') {
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+        if (expenseDate < weekAgo) return false
+      } else if (filterPeriod === 'month') {
+        const monthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate())
+        if (expenseDate < monthAgo) return false
+      } else if (filterPeriod === 'custom' && customPeriod) {
+        const startDate = new Date(customPeriod.start_date)
+        const endDate = new Date(customPeriod.end_date)
+        endDate.setHours(23, 59, 59, 999)
+        if (expenseDate < startDate || expenseDate > endDate) return false
+      }
     }
 
     return true
@@ -223,7 +235,6 @@ const App: React.FC = () => {
           <RecentTransactions 
             token={token!} 
             onViewAll={handleViewAllTransactions}
-            onViewCategories={handleViewCategories}
           />
           <AddTransaction token={token!} onTransactionAdded={handleTransactionAdded} />
         </div>

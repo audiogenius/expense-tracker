@@ -247,15 +247,21 @@ func handleTextMessage(botToken, apiURL, botKey string, fromID int64, username s
 }
 
 func handleCommand(botToken, apiURL, botKey string, fromID int64, username string, chatID int64, command string) {
-	switch command {
-	case "/help":
+	// Normalize command (trim and lowercase for comparison)
+	cmd := strings.TrimSpace(strings.ToLower(command))
+
+	switch {
+	case cmd == "/help":
 		helpText := "🤖 *Expense Tracker Bot*\n\n" +
 			"*📋 Команды:*\n" +
 			"/help - показать эту справку\n" +
 			"/total - показать общую сумму расходов\n" +
 			"/total week - расходы за неделю\n" +
 			"/total month - расходы за месяц\n" +
-			"/debts - показать долги\n\n" +
+			"/debts - показать долги\n" +
+			"/summary - AI саммари расходов за сегодня\n" +
+			"/summary week - AI саммари за неделю\n" +
+			"/summary month - AI саммари за месяц\n\n" +
 			"*💰 Как записать расход:*\n" +
 			"• Просто сумма: 100 или 50.50\n" +
 			"• С категорией: 100 продукты или 50.50 кафе\n" +
@@ -282,17 +288,26 @@ func handleCommand(botToken, apiURL, botKey string, fromID int64, username strin
 
 		sendMessage(botToken, chatID, helpText)
 
-	case "/total":
-		getTotalExpenses(botToken, apiURL, botKey, fromID, chatID, "all")
-
-	case "/total week":
+	case cmd == "/total week":
 		getTotalExpenses(botToken, apiURL, botKey, fromID, chatID, "week")
 
-	case "/total month":
+	case cmd == "/total month":
 		getTotalExpenses(botToken, apiURL, botKey, fromID, chatID, "month")
 
-	case "/debts":
+	case cmd == "/total":
+		getTotalExpenses(botToken, apiURL, botKey, fromID, chatID, "all")
+
+	case cmd == "/debts":
 		getDebts(botToken, apiURL, botKey, fromID, chatID)
+
+	case cmd == "/summary":
+		getSummary(botToken, apiURL, botKey, fromID, chatID, "day")
+
+	case cmd == "/summary week":
+		getSummary(botToken, apiURL, botKey, fromID, chatID, "week")
+
+	case cmd == "/summary month":
+		getSummary(botToken, apiURL, botKey, fromID, chatID, "month")
 
 	default:
 		sendMessage(botToken, chatID, "Неизвестная команда. Используйте /help для справки.")
@@ -464,6 +479,62 @@ func handleSharedExpense(botToken, apiURL, botKey string, fromID int64, username
 
 	sendMessage(botToken, chatID, fmt.Sprintf("✅ Записал расход: %.2f руб. (категория: %d)\n💡 Shared расходы будут добавлены в следующей версии",
 		amount, *categoryID))
+}
+
+func getSummary(botToken, apiURL, botKey string, fromID int64, chatID int64, period string) {
+	// Make request to analytics API
+	payload := map[string]interface{}{
+		"telegram_id": fromID,
+		"period":      period,
+	}
+	body, _ := json.Marshal(payload)
+	
+	req, err := http.NewRequest("POST", apiURL+"/analytics/summary", bytes.NewReader(body))
+	if err != nil {
+		sendMessage(botToken, chatID, "❌ Ошибка при создании запроса")
+		return
+	}
+	
+	req.Header.Set("Content-Type", "application/json")
+	if botKey != "" {
+		req.Header.Set("X-BOT-KEY", botKey)
+	}
+	
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		sendMessage(botToken, chatID, "❌ Не удалось получить саммари. Проверьте, что analytics-service запущен.")
+		return
+	}
+	defer resp.Body.Close()
+	
+	if resp.StatusCode != 200 {
+		sendMessage(botToken, chatID, fmt.Sprintf("❌ Ошибка получения саммари (код %d)", resp.StatusCode))
+		return
+	}
+	
+	var result map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		sendMessage(botToken, chatID, "❌ Ошибка обработки ответа")
+		return
+	}
+	
+	summary, ok := result["summary"].(string)
+	if !ok || summary == "" {
+		sendMessage(botToken, chatID, "❌ Саммари не получен. Возможно, Ollama недоступна.")
+		return
+	}
+	
+	// Format period name
+	periodName := "сегодня"
+	if period == "week" {
+		periodName = "за неделю"
+	} else if period == "month" {
+		periodName = "за месяц"
+	}
+	
+	message := fmt.Sprintf("🤖 *AI Саммари %s*\n\n%s", periodName, summary)
+	sendMessage(botToken, chatID, message)
 }
 
 func handlePhotoMessage(botToken, apiURL, botKey string, fromID int64, username string, chatID int64, photos []interface{}) {

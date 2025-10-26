@@ -33,18 +33,20 @@ export const AddTransaction = ({ token, onTransactionAdded }: AddTransactionProp
   const loadCategories = async () => {
     try {
       const data = await fetchCategories()
-      setCategories(data)
+      setCategories(data || [])
     } catch (error) {
       console.error('Failed to load categories:', error)
+      setCategories([])
     }
   }
 
   const loadSubcategories = async (categoryId: number) => {
     try {
       const data = await fetchSubcategories(token, categoryId)
-      setSubcategories(data)
+      setSubcategories(data || [])
     } catch (error) {
       console.error('Failed to load subcategories:', error)
+      setSubcategories([])
     }
   }
 
