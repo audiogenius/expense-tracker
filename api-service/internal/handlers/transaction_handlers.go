@@ -20,6 +20,8 @@ type TransactionHandlers struct {
 	Cache            *cache.MemoryCache
 	SuggestionsCache map[int]suggestionsCache // User ID -> Cache
 	Auth             *auth.Auth
+	Queries          *TransactionQueries
+	Validator        *TransactionValidator
 }
 
 // NewTransactionHandlers creates a new TransactionHandlers instance
@@ -29,6 +31,8 @@ func NewTransactionHandlers(db *pgxpool.Pool, auth *auth.Auth) *TransactionHandl
 		Cache:            cache.NewMemoryCache(),
 		SuggestionsCache: make(map[int]suggestionsCache),
 		Auth:             auth,
+		Queries:          NewTransactionQueries(db),
+		Validator:        NewTransactionValidator(),
 	}
 }
 
@@ -65,7 +69,7 @@ func (h *TransactionHandlers) GetTransactions(w http.ResponseWriter, r *http.Req
 	subcategoryID := r.URL.Query().Get("subcategory_id")
 	startDate := r.URL.Query().Get("start_date")
 	endDate := r.URL.Query().Get("end_date")
-	scope := r.URL.Query().Get("scope") // Filter: all, personal, family
+	scope := r.URL.Query().Get("scope")   // Filter: all, personal, family
 	cursor := r.URL.Query().Get("cursor") // timestamp for keyset pagination
 	limitStr := r.URL.Query().Get("limit")
 
@@ -456,18 +460,18 @@ func (h *TransactionHandlers) GetDeletedTransactions(w http.ResponseWriter, r *h
 			}
 
 			transaction := map[string]interface{}{
-				"id":              t.ID,
-				"user_id":         t.UserID,
-				"amount_cents":    t.AmountCents,
-				"category_id":     t.CategoryID,
-				"subcategory_id":  t.SubcategoryID,
-				"operation_type":  t.OperationType,
-				"timestamp":       t.Timestamp,
-				"is_shared":       t.IsShared,
-				"username":        t.Username,
-				"category_name":   t.CategoryName,
+				"id":               t.ID,
+				"user_id":          t.UserID,
+				"amount_cents":     t.AmountCents,
+				"category_id":      t.CategoryID,
+				"subcategory_id":   t.SubcategoryID,
+				"operation_type":   t.OperationType,
+				"timestamp":        t.Timestamp,
+				"is_shared":        t.IsShared,
+				"username":         t.Username,
+				"category_name":    t.CategoryName,
 				"subcategory_name": t.SubcategoryName,
-				"deleted_at":      deletedAt.UTC().Format(time.RFC3339),
+				"deleted_at":       deletedAt.UTC().Format(time.RFC3339),
 			}
 			transactions = append(transactions, transaction)
 		}
@@ -484,13 +488,13 @@ func (h *TransactionHandlers) GetDeletedTransactions(w http.ResponseWriter, r *h
 }
 
 type createTransactionRequest struct {
-	AmountCents     int     `json:"amount_cents"`
-	CategoryID      *int    `json:"category_id"`
-	SubcategoryID   *int    `json:"subcategory_id"`
-	OperationType   string  `json:"operation_type"` // "expense" or "income"
-	Timestamp       string  `json:"timestamp"`
-	IsShared        bool    `json:"is_shared"`
-	GroupID         *int64  `json:"group_id"`
+	AmountCents   int    `json:"amount_cents"`
+	CategoryID    *int   `json:"category_id"`
+	SubcategoryID *int   `json:"subcategory_id"`
+	OperationType string `json:"operation_type"` // "expense" or "income"
+	Timestamp     string `json:"timestamp"`
+	IsShared      bool   `json:"is_shared"`
+	GroupID       *int64 `json:"group_id"`
 }
 
 // CreateTransaction creates a new transaction
@@ -512,14 +516,9 @@ func (h *TransactionHandlers) CreateTransaction(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// Validate required fields
-	if req.AmountCents <= 0 {
-		http.Error(w, "amount must be positive", http.StatusBadRequest)
-		return
-	}
-
-	if req.OperationType != "expense" && req.OperationType != "income" {
-		http.Error(w, "operation_type must be 'expense' or 'income'", http.StatusBadRequest)
+	// Validate request
+	if errorMsg, statusCode := h.Validator.ValidateCreateRequest(req); errorMsg != "" {
+		http.Error(w, errorMsg, statusCode)
 		return
 	}
 
@@ -532,8 +531,7 @@ func (h *TransactionHandlers) CreateTransaction(w http.ResponseWriter, r *http.R
 
 	// Validate category if provided
 	if req.CategoryID != nil {
-		var exists bool
-		err = h.DB.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM categories WHERE id = $1)", *req.CategoryID).Scan(&exists)
+		exists, err := h.Queries.ValidateCategory(r.Context(), *req.CategoryID)
 		if err != nil || !exists {
 			http.Error(w, "category not found", http.StatusBadRequest)
 			return
@@ -542,8 +540,7 @@ func (h *TransactionHandlers) CreateTransaction(w http.ResponseWriter, r *http.R
 
 	// Validate subcategory if provided
 	if req.SubcategoryID != nil {
-		var exists bool
-		err = h.DB.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM subcategories WHERE id = $1)", *req.SubcategoryID).Scan(&exists)
+		exists, err := h.Queries.ValidateSubcategory(r.Context(), *req.SubcategoryID)
 		if err != nil || !exists {
 			http.Error(w, "subcategory not found", http.StatusBadRequest)
 			return
@@ -571,15 +568,15 @@ func (h *TransactionHandlers) CreateTransaction(w http.ResponseWriter, r *http.R
 	h.Cache.ClearPattern("/api/balance")
 
 	response := map[string]interface{}{
-		"id":              transactionID,
-		"user_id":         userID,
-		"amount_cents":    req.AmountCents,
-		"category_id":     req.CategoryID,
-		"subcategory_id":  req.SubcategoryID,
-		"operation_type":  req.OperationType,
-		"timestamp":       req.Timestamp,
-		"is_shared":       req.IsShared,
-		"group_id":        req.GroupID,
+		"id":             transactionID,
+		"user_id":        userID,
+		"amount_cents":   req.AmountCents,
+		"category_id":    req.CategoryID,
+		"subcategory_id": req.SubcategoryID,
+		"operation_type": req.OperationType,
+		"timestamp":      req.Timestamp,
+		"is_shared":      req.IsShared,
+		"group_id":       req.GroupID,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

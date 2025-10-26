@@ -68,6 +68,7 @@ func main() {
 	r.Get("/internal/debts", internalHandlers.InternalGetDebts)
 	r.Post("/internal/groups", internalHandlers.InternalRegisterGroup)
 	r.Post("/internal/group-members", internalHandlers.InternalRegisterGroupMember)
+	r.Get("/internal/users/by-username", internalHandlers.InternalGetUserByUsername)
 
 	// Protected routes with /api prefix
 	r.Route("/api", func(r chi.Router) {
@@ -119,25 +120,25 @@ func main() {
 			if analyticsURL == "" {
 				analyticsURL = "http://analytics:8081"
 			}
-			
+
 			resp, err := http.Get(analyticsURL + "/health")
 			if err != nil {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusServiceUnavailable)
 				json.NewEncoder(w).Encode(map[string]string{
-					"status": "error",
+					"status":  "error",
 					"message": "Analytics service unavailable",
 				})
 				return
 			}
 			defer resp.Body.Close()
-			
+
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(resp.StatusCode)
 			json.NewEncoder(w).Encode(map[string]interface{}{
-				"status": "ok",
+				"status":        "ok",
 				"ollama_status": "available",
-				"model": "llama2",
+				"model":         "llama2",
 			})
 		})
 
@@ -147,30 +148,30 @@ func main() {
 			if analyticsURL == "" {
 				analyticsURL = "http://analytics:8081"
 			}
-			
+
 			// Forward the request
-			resp, err := http.Post(analyticsURL + "/summary", "application/json", r.Body)
+			resp, err := http.Post(analyticsURL+"/summary", "application/json", r.Body)
 			if err != nil {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusServiceUnavailable)
 				json.NewEncoder(w).Encode(map[string]string{
-					"status": "error",
+					"status":  "error",
 					"message": "Analytics service unavailable",
 				})
 				return
 			}
 			defer resp.Body.Close()
-			
+
 			// Copy response
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(resp.StatusCode)
-			
+
 			var result map[string]interface{}
 			if err := json.NewDecoder(resp.Body).Decode(&result); err == nil {
 				json.NewEncoder(w).Encode(result)
 			} else {
 				json.NewEncoder(w).Encode(map[string]string{
-					"status": "error",
+					"status":  "error",
 					"message": "Failed to parse analytics response",
 				})
 			}

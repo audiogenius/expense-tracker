@@ -56,7 +56,7 @@ func postExpenseWithCategory(apiURL string, botKey string, telegramID int64, use
 	}
 	defer resp.Body.Close()
 	io.Copy(io.Discard, resp.Body)
-	
+
 	if resp.StatusCode != http.StatusCreated {
 		fmt.Printf("⚠️ [WARN] Unexpected status code %d when posting expense for user %d\n", resp.StatusCode, telegramID)
 	} else {
@@ -478,12 +478,22 @@ func handleSharedExpense(botToken, apiURL, botKey string, fromID int64, username
 	description = usernameRegex.ReplaceAllString(description, "")
 	description = strings.TrimSpace(description)
 
-	// Get Telegram IDs for usernames (simplified - in real implementation you'd look them up)
+	// Get Telegram IDs for usernames
 	var splitWith []int64
-	for range usernames {
-		// For now, just add placeholder IDs - in real implementation you'd look up actual Telegram IDs
-		// This is a limitation of the current implementation
-		splitWith = append(splitWith, 123456789) // Placeholder
+	for _, usernameMatch := range usernames {
+		username := usernameMatch[1] // Extract username without @
+
+		// Look up user by username in the database
+		userID, err := getUserIDByUsername(apiURL, botKey, username)
+		if err != nil {
+			sendMessage(botToken, chatID, fmt.Sprintf("❌ Пользователь @%s не найден в системе", username))
+			continue
+		}
+
+		// Don't add the current user to split list
+		if userID != fromID {
+			splitWith = append(splitWith, userID)
+		}
 	}
 
 	if len(splitWith) == 0 {
@@ -588,6 +598,40 @@ func handlePhotoMessage(botToken, apiURL, botKey string, fromID int64, username 
 	// 4. Parse results and show inline keyboard for selection
 }
 
+// getUserIDByUsername looks up a user by their Telegram username
+func getUserIDByUsername(apiURL, botKey, username string) (int64, error) {
+	// Make API call to find user by username
+	url := fmt.Sprintf("%s/internal/users/by-username?username=%s", apiURL, username)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return 0, err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+botKey)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("user not found")
+	}
+
+	var result struct {
+		UserID int64 `json:"user_id"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return 0, err
+	}
+
+	return result.UserID, nil
+}
+
 func sendMessage(botToken string, chatID int64, text string) {
 	smURL := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", botToken)
 	postBody := map[string]interface{}{
@@ -619,7 +663,7 @@ func registerGroup(apiURL, botKey string, groupID int64, groupName, groupType st
 	}
 	defer resp.Body.Close()
 	io.Copy(io.Discard, resp.Body)
-	
+
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		fmt.Printf("⚠️ [WARN] Unexpected status %d when registering group %d\n", resp.StatusCode, groupID)
 	} else {
@@ -629,9 +673,9 @@ func registerGroup(apiURL, botKey string, groupID int64, groupName, groupType st
 
 func registerGroupMember(apiURL, botKey string, groupID, userID int64, username string) {
 	payload := map[string]interface{}{
-		"group_id":    groupID,
-		"user_id":     userID,
-		"username":    username,
+		"group_id": groupID,
+		"user_id":  userID,
+		"username": username,
 	}
 	body, _ := json.Marshal(payload)
 	req, _ := http.NewRequest("POST", apiURL+"/internal/group-members", bytes.NewReader(body))
@@ -647,7 +691,7 @@ func registerGroupMember(apiURL, botKey string, groupID, userID int64, username 
 	}
 	defer resp.Body.Close()
 	io.Copy(io.Discard, resp.Body)
-	
+
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		fmt.Printf("⚠️ [WARN] Unexpected status %d when registering member: group=%d, user=%d\n", resp.StatusCode, groupID, userID)
 	} else {

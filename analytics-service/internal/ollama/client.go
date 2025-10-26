@@ -18,6 +18,7 @@ type Client struct {
 	httpClient *http.Client
 	model      string
 	timeout    time.Duration
+	context    []string // Store conversation context for memory
 }
 
 // NewClient creates new Ollama client
@@ -29,6 +30,7 @@ func NewClient(baseURL, model string) *Client {
 		},
 		model:   model,
 		timeout: 30 * time.Second,
+		context: make([]string, 0),
 	}
 }
 
@@ -196,4 +198,56 @@ func getChangeDirection(change float64) string {
 		return "📉"
 	}
 	return "➡️"
+}
+
+// AddToContext adds a message to the conversation context
+func (c *Client) AddToContext(message string) {
+	c.context = append(c.context, message)
+	// Keep only last 10 messages to prevent context from growing too large
+	if len(c.context) > 10 {
+		c.context = c.context[len(c.context)-10:]
+	}
+}
+
+// ClearContext clears the conversation context
+func (c *Client) ClearContext() {
+	c.context = make([]string, 0)
+}
+
+// GetContext returns the current conversation context
+func (c *Client) GetContext() []string {
+	return c.context
+}
+
+// GenerateWithContext generates text with conversation context
+func (c *Client) GenerateWithContext(ctx context.Context, prompt string) (string, error) {
+	// Build context-aware prompt
+	fullPrompt := c.buildContextPrompt(prompt)
+
+	// Generate response
+	response, err := c.GenerateText(ctx, fullPrompt)
+	if err != nil {
+		return "", err
+	}
+
+	// Add to context
+	c.AddToContext("User: " + prompt)
+	c.AddToContext("Assistant: " + response)
+
+	return response, nil
+}
+
+// buildContextPrompt builds a prompt with conversation context
+func (c *Client) buildContextPrompt(prompt string) string {
+	if len(c.context) == 0 {
+		return prompt
+	}
+
+	contextStr := "Предыдущий контекст разговора:\n"
+	for i, msg := range c.context {
+		contextStr += fmt.Sprintf("%d. %s\n", i+1, msg)
+	}
+	contextStr += "\nТекущий вопрос: " + prompt
+
+	return contextStr
 }

@@ -366,3 +366,41 @@ func (h *InternalHandlers) InternalRegisterGroupMember(w http.ResponseWriter, r 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
+
+// InternalGetUserByUsername looks up a user by their Telegram username
+func (h *InternalHandlers) InternalGetUserByUsername(w http.ResponseWriter, r *http.Request) {
+	botKey := os.Getenv("BOT_API_KEY")
+	if botKey == "" {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// Verify bot key
+	if r.Header.Get("Authorization") != "Bearer "+botKey {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	username := r.URL.Query().Get("username")
+	if username == "" {
+		http.Error(w, "username parameter required", http.StatusBadRequest)
+		return
+	}
+
+	// Look up user by username
+	var userID int64
+	err := h.DB.QueryRow(r.Context(), `
+		SELECT telegram_id 
+		FROM users 
+		WHERE username = $1
+	`, username).Scan(&userID)
+
+	if err != nil {
+		log.Error().Err(err).Str("username", username).Msg("failed to find user by username")
+		http.Error(w, "user not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]int64{"user_id": userID})
+}

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -349,7 +350,8 @@ func (h *Handlers) GetSummary(w http.ResponseWriter, r *http.Request) {
 	// Try to enhance with AI if available
 	if h.ollama != nil {
 		if err := h.ollama.HealthCheck(); err == nil {
-			aiMessage, err := h.ollama.GenerateFinancialInsight(ctx, *analysis)
+			// Use context-aware generation for better memory
+			aiMessage, err := h.ollama.GenerateWithContext(ctx, h.buildFinancialPrompt(*analysis))
 			if err != nil {
 				log.Warn().Err(err).Msg("Failed to generate AI insights, using fallback")
 			} else {
@@ -367,4 +369,46 @@ func (h *Handlers) GetSummary(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)
+}
+
+// buildFinancialPrompt builds a financial analysis prompt
+func (h *Handlers) buildFinancialPrompt(analysis types.AnalysisResult) string {
+	return fmt.Sprintf(`Проанализируй финансовые данные и дай краткие рекомендации на русском языке:
+
+Период: %s
+Расходы: %.2f руб
+Доходы: %.2f руб
+Баланс: %.2f руб
+
+Изменения:
+- Расходы: %.1f%% (%s)
+- Доходы: %.1f%% (%s)
+- Баланс: %.1f%% (%s)
+
+Аномалии: %d
+Тренды: %d
+
+Дай 2-3 кратких совета по управлению финансами. Будь позитивным и мотивирующим.`,
+		analysis.Period,
+		analysis.TotalExpenses/100,
+		analysis.TotalIncome/100,
+		(analysis.TotalIncome-analysis.TotalExpenses)/100,
+		analysis.Comparison.Change.ExpensesPercent,
+		getChangeDirection(analysis.Comparison.Change.ExpensesChange),
+		analysis.Comparison.Change.IncomesPercent,
+		getChangeDirection(analysis.Comparison.Change.IncomesChange),
+		analysis.Comparison.Change.BalancePercent,
+		getChangeDirection(analysis.Comparison.Change.BalanceChange),
+		len(analysis.Anomalies),
+		len(analysis.Trends))
+}
+
+// getChangeDirection returns direction emoji for change
+func getChangeDirection(change float64) string {
+	if change > 0 {
+		return "📈"
+	} else if change < 0 {
+		return "📉"
+	}
+	return "➡️"
 }

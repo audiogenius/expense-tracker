@@ -2,6 +2,7 @@ package cache
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
@@ -156,4 +157,16 @@ func (c *MemoryCache) GetSubcategories(categoryID int) (interface{}, bool) {
 func (c *MemoryCache) SetSubcategories(categoryID int, subcategories interface{}) {
 	key := fmt.Sprintf(KeySubcategories, categoryID)
 	c.Set(key, subcategories, 5*time.Minute)
+}
+
+// ClearPattern removes all items matching a pattern
+func (c *MemoryCache) ClearPattern(pattern string) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	for key := range c.items {
+		if strings.Contains(key, pattern) {
+			delete(c.items, key)
+		}
+	}
 }
