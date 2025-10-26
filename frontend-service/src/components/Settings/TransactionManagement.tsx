@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { fetchTransactions, softDeleteTransaction, restoreTransaction, fetchDeletedTransactions } from '../../api'
 import type { Transaction, TransactionFilters } from '../../types'
 import { formatCurrency, formatDate } from '../../utils/helpers'
+import { AddTransactionForm } from './AddTransactionForm'
 
 type TransactionManagementProps = {
   token: string
@@ -17,7 +18,8 @@ export const TransactionManagement: React.FC<TransactionManagementProps> = ({ to
   const [deletedTransactions, setDeletedTransactions] = useState<DeletedTransaction[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
-  const [activeTab, setActiveTab] = useState<'search' | 'deleted'>('search')
+  const [activeTab, setActiveTab] = useState<'search' | 'deleted' | 'add'>('search')
+  const [showAddForm, setShowAddForm] = useState(false)
 
   useEffect(() => {
     if (activeTab === 'deleted') {
@@ -105,6 +107,15 @@ export const TransactionManagement: React.FC<TransactionManagementProps> = ({ to
     }
   }
 
+  const handleTransactionAdded = () => {
+    setShowAddForm(false)
+    setActiveTab('search')
+    // Optionally refresh the search results
+    if (searchQuery.trim()) {
+      handleSearch()
+    }
+  }
+
   const getTransactionColor = (operationType: 'expense' | 'income') => {
     return operationType === 'expense' ? 'var(--error)' : 'var(--success)'
   }
@@ -128,6 +139,12 @@ export const TransactionManagement: React.FC<TransactionManagementProps> = ({ to
           onClick={() => setActiveTab('search')}
         >
           🔍 Поиск операций
+        </button>
+        <button 
+          className={`tab ${activeTab === 'add' ? 'active' : ''}`}
+          onClick={() => setActiveTab('add')}
+        >
+          ➕ Добавить операцию
         </button>
         <button 
           className={`tab ${activeTab === 'deleted' ? 'active' : ''}`}
@@ -206,6 +223,16 @@ export const TransactionManagement: React.FC<TransactionManagementProps> = ({ to
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {activeTab === 'add' && (
+        <div className="add-section">
+          <AddTransactionForm 
+            token={token}
+            onTransactionAdded={handleTransactionAdded}
+            onCancel={() => setActiveTab('search')}
+          />
         </div>
       )}
 

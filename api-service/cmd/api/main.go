@@ -85,10 +85,16 @@ func main() {
 		r.Get("/incomes/total", incomeHandlers.GetTotalIncomes)
 
 		// Transactions endpoint (unified expenses/incomes)
+		r.Post("/transactions", transactionHandlers.CreateTransaction)
 		r.Get("/transactions", transactionHandlers.GetTransactions)
 		r.Delete("/transactions/{id}", transactionHandlers.SoftDeleteTransaction)
 		r.Post("/transactions/{id}/restore", transactionHandlers.RestoreTransaction)
 		r.Get("/transactions/deleted", transactionHandlers.GetDeletedTransactions)
+
+		// Categories CRUD
+		r.Post("/categories", categoryHandlers.CreateCategory)
+		r.Put("/categories/{id}", categoryHandlers.UpdateCategory)
+		r.Delete("/categories/{id}", categoryHandlers.DeleteCategory)
 
 		// Subcategories CRUD
 		r.Post("/subcategories", categoryHandlers.CreateSubcategory)

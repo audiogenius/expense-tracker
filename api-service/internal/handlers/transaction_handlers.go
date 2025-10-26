@@ -482,3 +482,108 @@ func (h *TransactionHandlers) GetDeletedTransactions(w http.ResponseWriter, r *h
 	json.NewEncoder(w).Encode(response)
 	log.Info().Int64("user_id", userID).Int("count", len(transactions)).Msg("returned deleted transactions")
 }
+
+type createTransactionRequest struct {
+	AmountCents     int     `json:"amount_cents"`
+	CategoryID      *int    `json:"category_id"`
+	SubcategoryID   *int    `json:"subcategory_id"`
+	OperationType   string  `json:"operation_type"` // "expense" or "income"
+	Timestamp       string  `json:"timestamp"`
+	IsShared        bool    `json:"is_shared"`
+	GroupID         *int64  `json:"group_id"`
+}
+
+// CreateTransaction creates a new transaction
+func (h *TransactionHandlers) CreateTransaction(w http.ResponseWriter, r *http.Request) {
+	uid := r.Context().Value(auth.UserIDKey)
+	if uid == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	userID, ok := uid.(int64)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req createTransactionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	// Validate required fields
+	if req.AmountCents <= 0 {
+		http.Error(w, "amount must be positive", http.StatusBadRequest)
+		return
+	}
+
+	if req.OperationType != "expense" && req.OperationType != "income" {
+		http.Error(w, "operation_type must be 'expense' or 'income'", http.StatusBadRequest)
+		return
+	}
+
+	// Parse timestamp
+	timestamp, err := time.Parse(time.RFC3339, req.Timestamp)
+	if err != nil {
+		http.Error(w, "invalid timestamp format", http.StatusBadRequest)
+		return
+	}
+
+	// Validate category if provided
+	if req.CategoryID != nil {
+		var exists bool
+		err = h.DB.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM categories WHERE id = $1)", *req.CategoryID).Scan(&exists)
+		if err != nil || !exists {
+			http.Error(w, "category not found", http.StatusBadRequest)
+			return
+		}
+	}
+
+	// Validate subcategory if provided
+	if req.SubcategoryID != nil {
+		var exists bool
+		err = h.DB.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM subcategories WHERE id = $1)", *req.SubcategoryID).Scan(&exists)
+		if err != nil || !exists {
+			http.Error(w, "subcategory not found", http.StatusBadRequest)
+			return
+		}
+	}
+
+	// Insert transaction
+	var transactionID int
+	err = h.DB.QueryRow(r.Context(), `
+		INSERT INTO expenses (user_id, amount_cents, category_id, subcategory_id, operation_type, timestamp, is_shared, group_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		RETURNING id
+	`, userID, req.AmountCents, req.CategoryID, req.SubcategoryID, req.OperationType, timestamp, req.IsShared, req.GroupID).Scan(&transactionID)
+
+	if err != nil {
+		log.Error().Err(err).Msg("create transaction")
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// Clear relevant caches
+	h.Cache.ClearPattern("/api/transactions")
+	h.Cache.ClearPattern("/api/expenses")
+	h.Cache.ClearPattern("/api/incomes")
+	h.Cache.ClearPattern("/api/balance")
+
+	response := map[string]interface{}{
+		"id":              transactionID,
+		"user_id":         userID,
+		"amount_cents":    req.AmountCents,
+		"category_id":     req.CategoryID,
+		"subcategory_id":  req.SubcategoryID,
+		"operation_type":  req.OperationType,
+		"timestamp":       req.Timestamp,
+		"is_shared":       req.IsShared,
+		"group_id":        req.GroupID,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(response)
+	log.Info().Int64("user_id", userID).Int("transaction_id", transactionID).Str("operation_type", req.OperationType).Msg("transaction created")
+}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,6 +28,11 @@ func NewCategoryHandlers(db *pgxpool.Pool) *CategoryHandlers {
 		DB:               db,
 		SuggestionsCache: make(map[int]suggestionsCache),
 	}
+}
+
+type categoryRequest struct {
+	Name    string   `json:"name"`
+	Aliases []string `json:"aliases"`
 }
 
 type subcategoryRequest struct {
@@ -568,4 +574,157 @@ func (h *CategoryHandlers) DeleteSubcategory(w http.ResponseWriter, r *http.Requ
 
 	w.WriteHeader(http.StatusNoContent)
 	log.Info().Str("subcategory_id", subcategoryID).Msg("subcategory deleted")
+}
+
+// CreateCategory creates a new category
+func (h *CategoryHandlers) CreateCategory(w http.ResponseWriter, r *http.Request) {
+	var req categoryRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	if req.Name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+
+	// Check if category already exists
+	var exists bool
+	err := h.DB.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM categories WHERE name = $1)", req.Name).Scan(&exists)
+	if err != nil {
+		log.Error().Err(err).Msg("check category exists")
+		http.Error(w, "internal", http.StatusInternalServerError)
+		return
+	}
+	if exists {
+		http.Error(w, "category already exists", http.StatusConflict)
+		return
+	}
+
+	var categoryID int
+	err = h.DB.QueryRow(r.Context(),
+		"INSERT INTO categories (name, aliases) VALUES ($1, $2) RETURNING id",
+		req.Name, req.Aliases).Scan(&categoryID)
+	if err != nil {
+		log.Error().Err(err).Msg("create category")
+		http.Error(w, "internal", http.StatusInternalServerError)
+		return
+	}
+
+	response := map[string]interface{}{
+		"id":      categoryID,
+		"name":    req.Name,
+		"aliases": req.Aliases,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(response)
+	log.Info().Int("category_id", categoryID).Str("name", req.Name).Msg("category created")
+}
+
+// UpdateCategory updates an existing category
+func (h *CategoryHandlers) UpdateCategory(w http.ResponseWriter, r *http.Request) {
+	categoryIDStr := chi.URLParam(r, "id")
+	categoryID, err := strconv.Atoi(categoryIDStr)
+	if err != nil {
+		http.Error(w, "invalid category id", http.StatusBadRequest)
+		return
+	}
+
+	var req categoryRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	if req.Name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+
+	// Check if category exists
+	var exists bool
+	err = h.DB.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM categories WHERE id = $1)", categoryID).Scan(&exists)
+	if err != nil || !exists {
+		http.Error(w, "category not found", http.StatusNotFound)
+		return
+	}
+
+	// Check if new name conflicts with existing category
+	var nameExists bool
+	err = h.DB.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM categories WHERE name = $1 AND id != $2)", req.Name, categoryID).Scan(&nameExists)
+	if err != nil {
+		log.Error().Err(err).Msg("check category name conflict")
+		http.Error(w, "internal", http.StatusInternalServerError)
+		return
+	}
+	if nameExists {
+		http.Error(w, "category name already exists", http.StatusConflict)
+		return
+	}
+
+	_, err = h.DB.Exec(r.Context(),
+		"UPDATE categories SET name = $1, aliases = $2 WHERE id = $3",
+		req.Name, req.Aliases, categoryID)
+	if err != nil {
+		log.Error().Err(err).Msg("update category")
+		http.Error(w, "internal", http.StatusInternalServerError)
+		return
+	}
+
+	response := map[string]interface{}{
+		"id":      categoryID,
+		"name":    req.Name,
+		"aliases": req.Aliases,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+	log.Info().Int("category_id", categoryID).Str("name", req.Name).Msg("category updated")
+}
+
+// DeleteCategory deletes a category
+func (h *CategoryHandlers) DeleteCategory(w http.ResponseWriter, r *http.Request) {
+	categoryIDStr := chi.URLParam(r, "id")
+	categoryID, err := strconv.Atoi(categoryIDStr)
+	if err != nil {
+		http.Error(w, "invalid category id", http.StatusBadRequest)
+		return
+	}
+
+	// Check if category exists
+	var exists bool
+	err = h.DB.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM categories WHERE id = $1)", categoryID).Scan(&exists)
+	if err != nil || !exists {
+		http.Error(w, "category not found", http.StatusNotFound)
+		return
+	}
+
+	// Check if category is used in expenses
+	var usedInExpenses bool
+	err = h.DB.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM expenses WHERE category_id = $1)", categoryID).Scan(&usedInExpenses)
+	if err == nil && usedInExpenses {
+		http.Error(w, "cannot delete category that is used in expenses", http.StatusBadRequest)
+		return
+	}
+
+	// Check if category has subcategories
+	var hasSubcategories bool
+	err = h.DB.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM subcategories WHERE category_id = $1)", categoryID).Scan(&hasSubcategories)
+	if err == nil && hasSubcategories {
+		http.Error(w, "cannot delete category that has subcategories", http.StatusBadRequest)
+		return
+	}
+
+	_, err = h.DB.Exec(r.Context(), "DELETE FROM categories WHERE id = $1", categoryID)
+	if err != nil {
+		log.Error().Err(err).Msg("delete category")
+		http.Error(w, "internal", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+	log.Info().Int("category_id", categoryID).Msg("category deleted")
 }
