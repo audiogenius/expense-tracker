@@ -334,17 +334,17 @@ func (h *Handlers) GetSummary(w http.ResponseWriter, r *http.Request) {
 
 	// Generate AI summary if available
 	summary := "Анализ за период:\n\n"
-	if analysis.TotalExpenses > 0 {
-		summary += "💸 Расходы: " + strconv.FormatFloat(analysis.TotalExpenses/100, 'f', 2, 64) + " руб.\n"
+	if analysis.Data.Expenses > 0 {
+		summary += "💸 Расходы: " + strconv.FormatFloat(analysis.Data.Expenses, 'f', 2, 64) + " руб.\n"
 	}
-	if analysis.TotalIncome > 0 {
-		summary += "💰 Доходы: " + strconv.FormatFloat(analysis.TotalIncome/100, 'f', 2, 64) + " руб.\n"
+	if analysis.Data.Incomes > 0 {
+		summary += "💰 Доходы: " + strconv.FormatFloat(analysis.Data.Incomes, 'f', 2, 64) + " руб.\n"
 	}
-	balance := analysis.TotalIncome - analysis.TotalExpenses
+	balance := analysis.Data.Balance
 	if balance >= 0 {
-		summary += "✅ Баланс: +" + strconv.FormatFloat(balance/100, 'f', 2, 64) + " руб.\n"
+		summary += "✅ Баланс: +" + strconv.FormatFloat(balance, 'f', 2, 64) + " руб.\n"
 	} else {
-		summary += "⚠️ Баланс: " + strconv.FormatFloat(balance/100, 'f', 2, 64) + " руб.\n"
+		summary += "⚠️ Баланс: " + strconv.FormatFloat(balance, 'f', 2, 64) + " руб.\n"
 	}
 
 	// Try to enhance with AI if available
@@ -390,9 +390,9 @@ func (h *Handlers) buildFinancialPrompt(analysis types.AnalysisResult) string {
 
 Дай 2-3 кратких совета по управлению финансами. Будь позитивным и мотивирующим.`,
 		analysis.Period,
-		analysis.TotalExpenses/100,
-		analysis.TotalIncome/100,
-		(analysis.TotalIncome-analysis.TotalExpenses)/100,
+		analysis.Data.Expenses,
+		analysis.Data.Incomes,
+		analysis.Data.Balance,
 		analysis.Comparison.Change.ExpensesPercent,
 		getChangeDirection(analysis.Comparison.Change.ExpensesChange),
 		analysis.Comparison.Change.IncomesPercent,
