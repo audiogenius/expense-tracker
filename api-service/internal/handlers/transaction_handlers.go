@@ -46,16 +46,6 @@ type transactionResponse struct {
 	SubcategoryName *string `json:"subcategory_name"`
 }
 
-type transactionsFilter struct {
-	OperationType string `json:"operation_type"` // "expense", "income", "both"
-	CategoryID    *int   `json:"category_id"`
-	SubcategoryID *int   `json:"subcategory_id"`
-	StartDate     string `json:"start_date"` // RFC3339
-	EndDate       string `json:"end_date"`   // RFC3339
-	Page          int    `json:"page"`
-	Limit         int    `json:"limit"`
-}
-
 // GetTransactions returns paginated transactions with filters using keyset pagination
 func (h *TransactionHandlers) GetTransactions(w http.ResponseWriter, r *http.Request) {
 	uid := r.Context().Value(auth.UserIDKey)

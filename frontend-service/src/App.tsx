@@ -59,7 +59,7 @@ const App: React.FC = () => {
     if (token) {
       fetchData()
     }
-  }, [token, filterPeriod])
+  }, [token, filterPeriod, customPeriod])
 
   const fetchData = async () => {
     if (!token) return
@@ -68,7 +68,7 @@ const App: React.FC = () => {
         api.fetchExpenses(token),
         api.fetchIncomes(token),
         api.fetchCategories(),
-        api.fetchBalance(token, filterPeriod)
+        api.fetchBalance(token, filterPeriod, customPeriod)
       ])
       setExpenses(expensesData)
       setIncomes(incomesData)

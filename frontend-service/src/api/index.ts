@@ -116,8 +116,16 @@ export const addIncome = async (
 }
 
 // Balance
-export const fetchBalance = async (token: string, period: string): Promise<Balance> => {
-  const res = await axios.get(`${API_BASE}/balance?period=${period}`, {
+export const fetchBalance = async (
+  token: string, 
+  period: string, 
+  customPeriod?: { start_date: string; end_date: string }
+): Promise<Balance> => {
+  let url = `${API_BASE}/balance?period=${period}`
+  if (customPeriod) {
+    url += `&start_date=${customPeriod.start_date}&end_date=${customPeriod.end_date}`
+  }
+  const res = await axios.get(url, {
     headers: { Authorization: `Bearer ${token}` }
   })
   return res.data
