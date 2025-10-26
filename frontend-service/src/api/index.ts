@@ -302,31 +302,6 @@ export const deleteCategory = async (token: string, id: number) => {
   apiCache.clearPattern('/api/categories')
 }
 
-export const createSubcategory = async (token: string, name: string, categoryId: number, aliases: string[] = []) => {
-  const res = await axios.post(`${API_BASE}/subcategories`, { name, category_id: categoryId, aliases }, {
-    headers: { Authorization: `Bearer ${token}` }
-  })
-  // Clear categories cache
-  apiCache.clearPattern('/api/categories')
-  return res.data
-}
-
-export const updateSubcategory = async (token: string, id: number, name: string, categoryId: number, aliases: string[] = []) => {
-  const res = await axios.put(`${API_BASE}/subcategories/${id}`, { name, category_id: categoryId, aliases }, {
-    headers: { Authorization: `Bearer ${token}` }
-  })
-  // Clear categories cache
-  apiCache.clearPattern('/api/categories')
-  return res.data
-}
-
-export const deleteSubcategory = async (token: string, id: number) => {
-  await axios.delete(`${API_BASE}/subcategories/${id}`, {
-    headers: { Authorization: `Bearer ${token}` }
-  })
-  // Clear categories cache
-  apiCache.clearPattern('/api/categories')
-}
 
 // Transaction management functions
 export const createTransaction = async (token: string, transactionData: {

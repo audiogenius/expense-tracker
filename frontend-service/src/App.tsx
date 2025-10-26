@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, Suspense, lazy } from 'react'
 import './styles.css'
 import {
   Chart as ChartJS,
@@ -18,17 +18,17 @@ import type { Expense, Income, Category, Balance, Profile, Period, CustomPeriod,
 // API
 import * as api from './api'
 
-// Components
-import { TelegramLogin } from './components/Auth/TelegramLogin'
-import { Header } from './components/Header/Header'
-import { BalanceCard } from './components/Balance/BalanceCard'
-import { ExpenseLineChart } from './components/Charts/ExpenseLineChart'
-import { CategoryPieChart } from './components/Charts/CategoryPieChart'
-import { RecentTransactions } from './components/Transactions/RecentTransactions'
-import { AddTransaction } from './components/Transactions/AddTransaction'
-import { TransactionsPage } from './components/Transactions/TransactionsPage'
-import { CategoriesPage } from './components/Categories/CategoriesPage'
-import { SettingsPage } from './components/Settings/SettingsPage'
+// Lazy loaded components
+const TelegramLogin = lazy(() => import('./components/Auth/TelegramLogin').then(m => ({ default: m.TelegramLogin })))
+const Header = lazy(() => import('./components/Header/Header').then(m => ({ default: m.Header })))
+const BalanceCard = lazy(() => import('./components/Balance/BalanceCard').then(m => ({ default: m.BalanceCard })))
+const ExpenseLineChart = lazy(() => import('./components/Charts/ExpenseLineChart').then(m => ({ default: m.ExpenseLineChart })))
+const CategoryPieChart = lazy(() => import('./components/Charts/CategoryPieChart').then(m => ({ default: m.CategoryPieChart })))
+const RecentTransactions = lazy(() => import('./components/Transactions/RecentTransactions').then(m => ({ default: m.RecentTransactions })))
+const AddTransaction = lazy(() => import('./components/Transactions/AddTransaction').then(m => ({ default: m.AddTransaction })))
+const TransactionsPage = lazy(() => import('./components/Transactions/TransactionsPage').then(m => ({ default: m.TransactionsPage })))
+const CategoriesPage = lazy(() => import('./components/Categories/CategoriesPage').then(m => ({ default: m.CategoriesPage })))
+const SettingsPage = lazy(() => import('./components/Settings/SettingsPage').then(m => ({ default: m.SettingsPage })))
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement)
 
@@ -159,7 +159,9 @@ const App: React.FC = () => {
   if (!token) {
     return (
       <div className="app-center">
-        <TelegramLogin onAuth={handleTelegramAuth} />
+        <Suspense fallback={<div className="loading-spinner">Загрузка входа...</div>}>
+          <TelegramLogin onAuth={handleTelegramAuth} />
+        </Suspense>
       </div>
     )
   }
@@ -167,13 +169,17 @@ const App: React.FC = () => {
   if (currentPage === 'transactions') {
     return (
       <div className="app-center">
-        <Header profile={profile} onLogout={handleLogout} onSettings={handleViewSettings} />
+        <Suspense fallback={<div className="loading-spinner">Загрузка...</div>}>
+          <Header profile={profile} onLogout={handleLogout} onSettings={handleViewSettings} />
+        </Suspense>
         <div className="page-header">
           <button onClick={handleBackToDashboard} className="back-btn">
             ← Назад к дашборду
           </button>
         </div>
-        <TransactionsPage token={token!} />
+        <Suspense fallback={<div className="loading-spinner">Загрузка транзакций...</div>}>
+          <TransactionsPage token={token!} />
+        </Suspense>
       </div>
     )
   }
@@ -181,13 +187,17 @@ const App: React.FC = () => {
   if (currentPage === 'categories') {
     return (
       <div className="app-center">
-        <Header profile={profile} onLogout={handleLogout} onSettings={handleViewSettings} />
+        <Suspense fallback={<div className="loading-spinner">Загрузка...</div>}>
+          <Header profile={profile} onLogout={handleLogout} onSettings={handleViewSettings} />
+        </Suspense>
         <div className="page-header">
           <button onClick={handleBackToDashboard} className="back-btn">
             ← Назад к дашборду
           </button>
         </div>
-        <CategoriesPage token={token!} />
+        <Suspense fallback={<div className="loading-spinner">Загрузка категорий...</div>}>
+          <CategoriesPage token={token!} />
+        </Suspense>
       </div>
     )
   }
@@ -195,53 +205,67 @@ const App: React.FC = () => {
   if (currentPage === 'settings') {
     return (
       <div className="app-center">
-        <Header profile={profile} onLogout={handleLogout} />
-        <SettingsPage token={token!} onBack={handleBackToDashboard} />
+        <Suspense fallback={<div className="loading-spinner">Загрузка...</div>}>
+          <Header profile={profile} onLogout={handleLogout} />
+        </Suspense>
+        <Suspense fallback={<div className="loading-spinner">Загрузка настроек...</div>}>
+          <SettingsPage token={token!} onBack={handleBackToDashboard} />
+        </Suspense>
       </div>
     )
   }
 
   return (
     <div className="app-center">
-      <Header profile={profile} onLogout={handleLogout} onSettings={handleViewSettings} />
+      <Suspense fallback={<div className="loading-spinner">Загрузка...</div>}>
+        <Header profile={profile} onLogout={handleLogout} onSettings={handleViewSettings} />
+      </Suspense>
 
       <div className="main-grid">
         {/* LEFT COLUMN */}
         <div className="left-column">
-          <BalanceCard 
-            balance={balance} 
-            filterPeriod={filterPeriod} 
-            customPeriod={customPeriod}
-            onPeriodChange={setFilterPeriod}
-            onCustomPeriodChange={setCustomPeriod}
-          />
+          <Suspense fallback={<div className="loading-spinner">Загрузка баланса...</div>}>
+            <BalanceCard 
+              balance={balance} 
+              filterPeriod={filterPeriod} 
+              customPeriod={customPeriod}
+              onPeriodChange={setFilterPeriod}
+              onCustomPeriodChange={setCustomPeriod}
+            />
+          </Suspense>
 
           {/* Charts */}
           {(filteredExpenses.length > 0 || incomes.length > 0) && (
             <div className="charts-grid">
-              <ExpenseLineChart 
-                expenses={filteredExpenses} 
-                incomes={incomes}
-                chartType={chartType}
-                chartPeriod={chartPeriod}
-                onChartTypeChange={setChartType}
-                onChartPeriodChange={setChartPeriod}
-              />
-              {filteredExpenses.length > 0 && (
-                <CategoryPieChart expenses={filteredExpenses} categories={categories} />
-              )}
+              <Suspense fallback={<div className="loading-spinner">Загрузка графиков...</div>}>
+                <ExpenseLineChart 
+                  expenses={filteredExpenses} 
+                  incomes={incomes}
+                  chartType={chartType}
+                  chartPeriod={chartPeriod}
+                  onChartTypeChange={setChartType}
+                  onChartPeriodChange={setChartPeriod}
+                />
+                {filteredExpenses.length > 0 && (
+                  <CategoryPieChart expenses={filteredExpenses} categories={categories} />
+                )}
+              </Suspense>
             </div>
           )}
         </div>
 
         {/* RIGHT COLUMN */}
         <div className="right-column">
-          <RecentTransactions 
-            token={token!} 
-            onViewAll={handleViewAllTransactions}
-            refreshTrigger={refreshTrigger}
-          />
-          <AddTransaction token={token!} onTransactionAdded={handleTransactionAdded} />
+          <Suspense fallback={<div className="loading-spinner">Загрузка транзакций...</div>}>
+            <RecentTransactions 
+              token={token!} 
+              onViewAll={handleViewAllTransactions}
+              refreshTrigger={refreshTrigger}
+            />
+          </Suspense>
+          <Suspense fallback={<div className="loading-spinner">Загрузка формы...</div>}>
+            <AddTransaction token={token!} onTransactionAdded={handleTransactionAdded} />
+          </Suspense>
         </div>
       </div>
     </div>

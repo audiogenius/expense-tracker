@@ -1,152 +1,83 @@
-import React, { useState, useEffect } from 'react'
-import { 
-  fetchCategories, 
-  fetchSubcategories, 
-  createCategory, 
-  updateCategory, 
-  deleteCategory,
-  createSubcategory,
-  updateSubcategory,
-  deleteSubcategory
-} from '../../api'
+import * as React from 'react'
 import type { Category, Subcategory } from '../../types'
+import { useCategories } from './hooks/useCategories'
+import { CategoryCard } from './components/CategoryCard'
+import { SubcategoryCard } from './components/SubcategoryCard'
+import { CategoryForm } from './components/CategoryForm'
 
 type CategoriesPageProps = {
   token: string
   editable?: boolean
 }
 
-export const CategoriesPage: React.FC<CategoriesPageProps> = ({ token, editable = false }) => {
-  const [categories, setCategories] = useState<Category[]>([])
-  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null)
-  const [subcategories, setSubcategories] = useState<Subcategory[]>([])
-  const [loading, setLoading] = useState(true)
-  const [showAddCategory, setShowAddCategory] = useState(false)
-  const [showAddSubcategory, setShowAddSubcategory] = useState(false)
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null)
-  const [editingSubcategory, setEditingSubcategory] = useState<Subcategory | null>(null)
-  const [newCategoryName, setNewCategoryName] = useState('')
-  const [newSubcategoryName, setNewSubcategoryName] = useState('')
-  const [error, setError] = useState<string | null>(null)
+export const CategoriesPage = ({ token, editable = false }: CategoriesPageProps) => {
+  const {
+    categories,
+    subcategories,
+    loading,
+    error,
+    setError,
+    loadSubcategories,
+    handleCreateCategory,
+    handleUpdateCategory,
+    handleDeleteCategory,
+    handleCreateSubcategory,
+    handleUpdateSubcategory,
+    handleDeleteSubcategory
+  } = useCategories(token)
 
-  useEffect(() => {
-    loadCategories()
-  }, [])
+  const [selectedCategory, setSelectedCategory] = React.useState<Category | null>(null)
+  const [showAddCategory, setShowAddCategory] = React.useState(false)
+  const [showAddSubcategory, setShowAddSubcategory] = React.useState(false)
+  const [editingCategory, setEditingCategory] = React.useState<Category | null>(null)
+  const [editingSubcategory, setEditingSubcategory] = React.useState<Subcategory | null>(null)
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (selectedCategory) {
       loadSubcategories(selectedCategory.id)
-    } else {
-      setSubcategories([])
     }
-  }, [selectedCategory])
+  }, [selectedCategory, loadSubcategories])
 
-  const loadCategories = async () => {
-    try {
-      setLoading(true)
-      const data = await fetchCategories()
-      setCategories(data)
-    } catch (error) {
-      console.error('Failed to load categories:', error)
-    } finally {
-      setLoading(false)
-    }
+  const handleCategorySelect = (category: Category) => {
+    setSelectedCategory(category)
   }
 
-  const loadSubcategories = async (categoryId: number) => {
-    try {
-      const data = await fetchSubcategories(token, categoryId)
-      setSubcategories(data)
-    } catch (error) {
-      console.error('Failed to load subcategories:', error)
-    }
+  const handleCategoryEdit = (category: Category) => {
+    setEditingCategory(category)
   }
 
-  const handleCreateCategory = async () => {
-    if (!newCategoryName.trim()) return
-    
-    try {
-      setError(null)
-      await createCategory(token, newCategoryName.trim())
-      setNewCategoryName('')
-      setShowAddCategory(false)
-      await loadCategories()
-    } catch (error: any) {
-      setError(error.message || 'Ошибка создания категории')
-    }
+  const handleCategoryUpdate = async (category: Category, name: string) => {
+    await handleUpdateCategory(category, name)
+    setEditingCategory(null)
   }
 
-  const handleUpdateCategory = async (category: Category) => {
-    if (!newCategoryName.trim()) return
-    
-    try {
-      setError(null)
-      await updateCategory(token, category.id, newCategoryName.trim())
-      setNewCategoryName('')
-      setEditingCategory(null)
-      await loadCategories()
-    } catch (error: any) {
-      setError(error.message || 'Ошибка обновления категории')
-    }
-  }
-
-  const handleDeleteCategory = async (category: Category) => {
+  const handleCategoryDelete = async (category: Category) => {
     if (!confirm(`Удалить категорию "${category.name}"?`)) return
-    
-    try {
-      setError(null)
-      await deleteCategory(token, category.id)
-      if (selectedCategory?.id === category.id) {
-        setSelectedCategory(null)
-      }
-      await loadCategories()
-    } catch (error: any) {
-      setError(error.message || 'Ошибка удаления категории')
+    await handleDeleteCategory(category)
+    if (selectedCategory?.id === category.id) {
+      setSelectedCategory(null)
     }
   }
 
-  const handleCreateSubcategory = async () => {
-    if (!newSubcategoryName.trim() || !selectedCategory) return
-    
-    try {
-      setError(null)
-      await createSubcategory(token, newSubcategoryName.trim(), selectedCategory.id)
-      setNewSubcategoryName('')
-      setShowAddSubcategory(false)
-      await loadSubcategories(selectedCategory.id)
-    } catch (error: any) {
-      setError(error.message || 'Ошибка создания подкатегории')
-    }
+  const handleSubcategoryUpdate = async (subcategory: Subcategory, name: string) => {
+    await handleUpdateSubcategory(subcategory, name)
+    setEditingSubcategory(null)
   }
 
-  const handleUpdateSubcategory = async (subcategory: Subcategory) => {
-    if (!newSubcategoryName.trim()) return
-    
-    try {
-      setError(null)
-      await updateSubcategory(token, subcategory.id, newSubcategoryName.trim(), subcategory.category_id)
-      setNewSubcategoryName('')
-      setEditingSubcategory(null)
-      if (selectedCategory) {
-        await loadSubcategories(selectedCategory.id)
-      }
-    } catch (error: any) {
-      setError(error.message || 'Ошибка обновления подкатегории')
-    }
-  }
-
-  const handleDeleteSubcategory = async (subcategory: Subcategory) => {
+  const handleSubcategoryDelete = async (subcategory: Subcategory) => {
     if (!confirm(`Удалить подкатегорию "${subcategory.name}"?`)) return
-    
-    try {
-      setError(null)
-      await deleteSubcategory(token, subcategory.id)
-      if (selectedCategory) {
-        await loadSubcategories(selectedCategory.id)
-      }
-    } catch (error: any) {
-      setError(error.message || 'Ошибка удаления подкатегории')
-    }
+    await handleDeleteSubcategory(subcategory)
+  }
+
+  const handleCreateCategorySubmit = async (name: string) => {
+    await handleCreateCategory(name)
+    setShowAddCategory(false)
+  }
+
+  const handleCreateSubcategorySubmit = async (name: string) => {
+    if (!selectedCategory) return
+    await handleCreateSubcategory(name, selectedCategory.id)
+    setShowAddSubcategory(false)
   }
 
   if (loading) {
@@ -190,92 +121,27 @@ export const CategoriesPage: React.FC<CategoriesPageProps> = ({ token, editable 
             )}
           </div>
           <div className="categories-list">
-            {/* Add Category Form */}
             {showAddCategory && (
-              <div className="add-form">
-                <input
-                  type="text"
-                  placeholder="Название категории"
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleCreateCategory()}
-                  autoFocus
-                />
-                <div className="form-actions">
-                  <button onClick={handleCreateCategory} disabled={!newCategoryName.trim()}>
-                    ✅ Сохранить
-                  </button>
-                  <button onClick={() => {
-                    setShowAddCategory(false)
-                    setNewCategoryName('')
-                  }}>
-                    ❌ Отмена
-                  </button>
-                </div>
-              </div>
+              <CategoryForm
+                onSubmit={handleCreateCategorySubmit}
+                onCancel={() => setShowAddCategory(false)}
+                placeholder="Название категории"
+              />
             )}
 
-            {categories.map((category) => (
-              <div
+            {categories.map((category: Category) => (
+              <CategoryCard
                 key={category.id}
-                className={`category-card ${selectedCategory?.id === category.id ? 'selected' : ''}`}
-                onClick={() => setSelectedCategory(category)}
-              >
-                {editingCategory?.id === category.id ? (
-                  <div className="edit-form">
-                    <input
-                      type="text"
-                      value={newCategoryName}
-                      onChange={(e) => setNewCategoryName(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && handleUpdateCategory(category)}
-                      autoFocus
-                    />
-                    <div className="form-actions">
-                      <button onClick={() => handleUpdateCategory(category)} disabled={!newCategoryName.trim()}>
-                        ✅ Сохранить
-                      </button>
-                      <button onClick={() => {
-                        setEditingCategory(null)
-                        setNewCategoryName('')
-                      }}>
-                        ❌ Отмена
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="category-name">{category.name}</div>
-                    <div className="category-meta">
-                      ID: {category.id}
-                      {editable && (
-                        <div className="category-actions">
-                          <button 
-                            className="edit-btn-small" 
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setEditingCategory(category)
-                              setNewCategoryName(category.name)
-                            }}
-                            title="Редактировать категорию"
-                          >
-                            ✏️
-                          </button>
-                          <button 
-                            className="delete-btn-small" 
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleDeleteCategory(category)
-                            }}
-                            title="Удалить категорию"
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
+                category={category}
+                isSelected={selectedCategory?.id === category.id}
+                isEditing={editingCategory?.id === category.id}
+                onSelect={handleCategorySelect}
+                onEdit={handleCategoryEdit}
+                onUpdate={handleCategoryUpdate}
+                onDelete={handleCategoryDelete}
+                onCancelEdit={() => setEditingCategory(null)}
+                editable={editable}
+              />
             ))}
           </div>
         </div>
@@ -296,29 +162,12 @@ export const CategoriesPage: React.FC<CategoriesPageProps> = ({ token, editable 
           </div>
           {selectedCategory ? (
             <div className="subcategories-list">
-              {/* Add Subcategory Form */}
               {showAddSubcategory && (
-                <div className="add-form">
-                  <input
-                    type="text"
-                    placeholder="Название подкатегории"
-                    value={newSubcategoryName}
-                    onChange={(e) => setNewSubcategoryName(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleCreateSubcategory()}
-                    autoFocus
-                  />
-                  <div className="form-actions">
-                    <button onClick={handleCreateSubcategory} disabled={!newSubcategoryName.trim()}>
-                      ✅ Сохранить
-                    </button>
-                    <button onClick={() => {
-                      setShowAddSubcategory(false)
-                      setNewSubcategoryName('')
-                    }}>
-                      ❌ Отмена
-                    </button>
-                  </div>
-                </div>
+                <CategoryForm
+                  onSubmit={handleCreateSubcategorySubmit}
+                  onCancel={() => setShowAddSubcategory(false)}
+                  placeholder="Название подкатегории"
+                />
               )}
 
               {subcategories.length === 0 ? (
@@ -326,63 +175,16 @@ export const CategoriesPage: React.FC<CategoriesPageProps> = ({ token, editable 
                   <p>Нет подкатегорий для этой категории</p>
                 </div>
               ) : (
-                subcategories.map((subcategory) => (
-                  <div key={subcategory.id} className="subcategory-card">
-                    {editingSubcategory?.id === subcategory.id ? (
-                      <div className="edit-form">
-                        <input
-                          type="text"
-                          value={newSubcategoryName}
-                          onChange={(e) => setNewSubcategoryName(e.target.value)}
-                          onKeyPress={(e) => e.key === 'Enter' && handleUpdateSubcategory(subcategory)}
-                          autoFocus
-                        />
-                        <div className="form-actions">
-                          <button onClick={() => handleUpdateSubcategory(subcategory)} disabled={!newSubcategoryName.trim()}>
-                            ✅ Сохранить
-                          </button>
-                          <button onClick={() => {
-                            setEditingSubcategory(null)
-                            setNewSubcategoryName('')
-                          }}>
-                            ❌ Отмена
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="subcategory-name">{subcategory.name}</div>
-                        <div className="subcategory-meta">
-                          ID: {subcategory.id}
-                          {editable && (
-                            <div className="subcategory-actions">
-                              <button 
-                                className="edit-btn-small" 
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  setEditingSubcategory(subcategory)
-                                  setNewSubcategoryName(subcategory.name)
-                                }}
-                                title="Редактировать подкатегорию"
-                              >
-                                ✏️
-                              </button>
-                              <button 
-                                className="delete-btn-small" 
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleDeleteSubcategory(subcategory)
-                                }}
-                                title="Удалить подкатегорию"
-                              >
-                                🗑️
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </>
-                    )}
-                  </div>
+                subcategories.map((subcategory: Subcategory) => (
+                  <SubcategoryCard
+                    key={subcategory.id}
+                    subcategory={subcategory}
+                    isEditing={editingSubcategory?.id === subcategory.id}
+                    onUpdate={handleSubcategoryUpdate}
+                    onDelete={handleSubcategoryDelete}
+                    onCancelEdit={() => setEditingSubcategory(null)}
+                    editable={editable}
+                  />
                 ))
               )}
             </div>
