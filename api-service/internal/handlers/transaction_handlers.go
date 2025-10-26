@@ -157,10 +157,33 @@ func (h *TransactionHandlers) GetTransactions(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	// User filter (whitelist) - only if not wildcard and has IDs
-	if !hasWildcard && len(whitelistIDs) > 0 {
-		whereConditions = append(whereConditions, fmt.Sprintf("u.telegram_id = ANY($%d)", argIndex))
-		args = append(args, whitelistIDs)
+	// Get user's groups for filtering
+	var userGroupIDs []int64
+	groupRows, err := h.DB.Query(r.Context(), 
+		"SELECT group_id FROM group_members WHERE user_id = $1", userID)
+	if err == nil {
+		defer groupRows.Close()
+		for groupRows.Next() {
+			var groupID int64
+			if err := groupRows.Scan(&groupID); err == nil {
+				userGroupIDs = append(userGroupIDs, groupID)
+			}
+		}
+	}
+
+	// Filter by user's own expenses OR group expenses (excluding private expenses from others)
+	// Logic: Show my expenses (all) + group expenses that are not private
+	if len(userGroupIDs) > 0 {
+		// User is in groups: show own expenses + non-private group expenses
+		whereConditions = append(whereConditions, fmt.Sprintf(
+			"(e.user_id = $%d OR (e.group_id = ANY($%d) AND e.is_private = false))",
+			argIndex, argIndex+1))
+		args = append(args, userID, userGroupIDs)
+		argIndex += 2
+	} else {
+		// User not in any group: show only own expenses
+		whereConditions = append(whereConditions, fmt.Sprintf("e.user_id = $%d", argIndex))
+		args = append(args, userID)
 		argIndex++
 	}
 
@@ -185,7 +208,7 @@ func (h *TransactionHandlers) GetTransactions(w http.ResponseWriter, r *http.Req
 			   e.operation_type, e.timestamp, e.is_shared, u.username,
 			   c.name as category_name, s.name as subcategory_name
 		FROM expenses e
-		LEFT JOIN users u ON e.user_id = u.id
+		LEFT JOIN users u ON u.id = e.user_id
 		LEFT JOIN categories c ON e.category_id = c.id
 		LEFT JOIN subcategories s ON e.subcategory_id = s.id
 		%s
