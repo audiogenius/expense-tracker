@@ -65,6 +65,8 @@ func main() {
 	r.Post("/internal/expenses", internalHandlers.InternalPostExpense)
 	r.Get("/internal/expenses/total", internalHandlers.InternalGetTotalExpenses)
 	r.Get("/internal/debts", internalHandlers.InternalGetDebts)
+	r.Post("/internal/groups", internalHandlers.InternalRegisterGroup)
+	r.Post("/internal/group-members", internalHandlers.InternalRegisterGroupMember)
 
 	// Protected routes with /api prefix
 	r.Route("/api", func(r chi.Router) {

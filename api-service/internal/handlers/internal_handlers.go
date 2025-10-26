@@ -89,13 +89,35 @@ func (h *InternalHandlers) InternalPostExpense(w http.ResponseWriter, r *http.Re
 			categoryID = &v
 		}
 	}
+
+	// parse group_id (optional)
+	var groupID *int64
+	if gID, ok := payload["group_id"]; ok && gID != nil {
+		switch v := gID.(type) {
+		case float64:
+			id := int64(v)
+			groupID = &id
+		case int64:
+			groupID = &v
+		case int:
+			id := int64(v)
+			groupID = &id
+		}
+	}
+
+	// parse is_private (optional, default false)
+	isPrivate := false
+	if priv, ok := payload["is_private"].(bool); ok {
+		isPrivate = priv
+	}
+
 	ts := time.Now().UTC()
 	if t, ok := payload["timestamp"].(string); ok && t != "" {
 		if parsed, err := time.Parse(time.RFC3339, t); err == nil {
 			ts = parsed.UTC()
 		}
 	}
-	if _, err := h.DB.Exec(r.Context(), `INSERT INTO expenses (user_id, amount_cents, category_id, timestamp, is_shared) VALUES ($1,$2,$3,$4,$5)`, internalID, amountCents, categoryID, ts, false); err != nil {
+	if _, err := h.DB.Exec(r.Context(), `INSERT INTO expenses (user_id, amount_cents, category_id, timestamp, is_shared, group_id, is_private) VALUES ($1,$2,$3,$4,$5,$6,$7)`, internalID, amountCents, categoryID, ts, false, groupID, isPrivate); err != nil {
 		log.Error().Err(err).Msg("insert expense internal")
 		http.Error(w, "internal", http.StatusInternalServerError)
 		return
@@ -256,4 +278,91 @@ func (h *InternalHandlers) InternalGetDebts(w http.ResponseWriter, r *http.Reque
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(debts)
+}
+
+// InternalRegisterGroup registers or updates a Telegram group
+func (h *InternalHandlers) InternalRegisterGroup(w http.ResponseWriter, r *http.Request) {
+	botKey := os.Getenv("BOT_API_KEY")
+	if botKey == "" || r.Header.Get("X-BOT-KEY") != botKey {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	var payload struct {
+		ID   int64  `json:"id"`
+		Name string `json:"name"`
+		Type string `json:"type"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	// Upsert group
+	_, err := h.DB.Exec(r.Context(), `
+		INSERT INTO telegram_groups (id, name, type, created_at, updated_at)
+		VALUES ($1, $2, $3, NOW(), NOW())
+		ON CONFLICT (id) DO UPDATE SET
+			name = EXCLUDED.name,
+			type = EXCLUDED.type,
+			updated_at = NOW()
+	`, payload.ID, payload.Name, payload.Type)
+
+	if err != nil {
+		log.Error().Err(err).Msg("failed to register group")
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// InternalRegisterGroupMember registers a user in a group
+func (h *InternalHandlers) InternalRegisterGroupMember(w http.ResponseWriter, r *http.Request) {
+	botKey := os.Getenv("BOT_API_KEY")
+	if botKey == "" || r.Header.Get("X-BOT-KEY") != botKey {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	var payload struct {
+		GroupID  int64  `json:"group_id"`
+		UserID   int64  `json:"user_id"`
+		Username string `json:"username"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	// First, ensure user exists
+	_, err := h.DB.Exec(r.Context(), `
+		INSERT INTO users (telegram_id, username)
+		VALUES ($1, $2)
+		ON CONFLICT (telegram_id) DO UPDATE SET
+			username = EXCLUDED.username
+	`, payload.UserID, payload.Username)
+
+	if err != nil {
+		log.Error().Err(err).Msg("failed to register user")
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// Then, add to group_members
+	_, err = h.DB.Exec(r.Context(), `
+		INSERT INTO group_members (group_id, user_id, role, joined_at)
+		VALUES ($1, $2, 'member', NOW())
+		ON CONFLICT (group_id, user_id) DO NOTHING
+	`, payload.GroupID, payload.UserID)
+
+	if err != nil {
+		log.Error().Err(err).Msg("failed to register group member")
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }

@@ -23,10 +23,10 @@ func envOr(key, def string) string {
 
 // createHS256Token manually creates a simple JWT with numeric sub claim
 func postExpense(apiURL string, botKey string, telegramID int64, username string, amount float64) (int, error) {
-	return postExpenseWithCategory(apiURL, botKey, telegramID, username, amount, nil)
+	return postExpenseWithCategory(apiURL, botKey, telegramID, username, amount, nil, nil)
 }
 
-func postExpenseWithCategory(apiURL string, botKey string, telegramID int64, username string, amount float64, categoryID *int) (int, error) {
+func postExpenseWithCategory(apiURL string, botKey string, telegramID int64, username string, amount float64, categoryID *int, groupID *int64) (int, error) {
 	// Convert amount to cents (multiply by 100 and round)
 	amountCents := int(amount * 100)
 	payload := map[string]interface{}{
@@ -37,6 +37,10 @@ func postExpenseWithCategory(apiURL string, botKey string, telegramID int64, use
 	}
 	if categoryID != nil {
 		payload["category_id"] = *categoryID
+	}
+	if groupID != nil {
+		payload["group_id"] = *groupID
+		payload["is_private"] = false // По умолчанию групповые расходы не приватные
 	}
 	body, _ := json.Marshal(payload)
 	req, _ := http.NewRequest("POST", apiURL+"/internal/expenses", bytes.NewReader(body))
@@ -169,16 +173,24 @@ func main() {
 			}
 
 			chatID := int64(0)
+			chatType := ""
+			chatTitle := ""
 			if chatf, ok := msg["chat"].(map[string]interface{}); ok {
 				if cid, ok := chatf["id"].(float64); ok {
 					chatID = int64(cid)
+				}
+				if ct, ok := chatf["type"].(string); ok {
+					chatType = ct
+				}
+				if title, ok := chatf["title"].(string); ok {
+					chatTitle = title
 				}
 			}
 
 			// handle text messages
 			text, _ := msg["text"].(string)
 			if text != "" {
-				handleTextMessage(botToken, apiURL, botKey, fromID, username, chatID, text, re)
+				handleTextMessage(botToken, apiURL, botKey, fromID, username, chatID, chatType, chatTitle, text, re)
 			}
 
 			// handle photo messages
@@ -189,7 +201,18 @@ func main() {
 	}
 }
 
-func handleTextMessage(botToken, apiURL, botKey string, fromID int64, username string, chatID int64, text string, re *regexp.Regexp) {
+func handleTextMessage(botToken, apiURL, botKey string, fromID int64, username string, chatID int64, chatType string, chatTitle string, text string, re *regexp.Regexp) {
+	// Determine if this is a group chat
+	isGroup := chatType == "group" || chatType == "supergroup"
+	var groupID *int64
+	if isGroup {
+		groupID = &chatID
+		// Register group if needed
+		registerGroup(apiURL, botKey, chatID, chatTitle, chatType)
+		// Register user in group
+		registerGroupMember(apiURL, botKey, chatID, fromID, username)
+	}
+
 	// handle commands
 	if strings.HasPrefix(text, "/") {
 		handleCommand(botToken, apiURL, botKey, fromID, username, chatID, text)
@@ -228,7 +251,7 @@ func handleTextMessage(botToken, apiURL, botKey string, fromID int64, username s
 	// Try to detect category from description
 	categoryID := detectCategory(apiURL, description)
 
-	status, err := postExpenseWithCategory(apiURL, botKey, fromID, username, amount, categoryID)
+	status, err := postExpenseWithCategory(apiURL, botKey, fromID, username, amount, categoryID, groupID)
 
 	// send a reply via sendMessage
 	var replyText string
@@ -466,7 +489,10 @@ func handleSharedExpense(botToken, apiURL, botKey string, fromID int64, username
 
 	// Create shared expense (simplified - just create regular expense for now)
 	// TODO: Implement proper shared expense creation
-	status, err := postExpenseWithCategory(apiURL, botKey, fromID, username, amount, categoryID)
+	var groupID *int64
+	gid := chatID
+	groupID = &gid
+	status, err := postExpenseWithCategory(apiURL, botKey, fromID, username, amount, categoryID, groupID)
 	if err != nil {
 		sendMessage(botToken, chatID, "❌ Ошибка создания расхода")
 		return
@@ -564,4 +590,46 @@ func sendMessage(botToken string, chatID int64, text string) {
 	}
 	pb, _ := json.Marshal(postBody)
 	http.Post(smURL, "application/json", bytes.NewReader(pb))
+}
+
+func registerGroup(apiURL, botKey string, groupID int64, groupName, groupType string) {
+	payload := map[string]interface{}{
+		"id":   groupID,
+		"name": groupName,
+		"type": groupType,
+	}
+	body, _ := json.Marshal(payload)
+	req, _ := http.NewRequest("POST", apiURL+"/internal/groups", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	if botKey != "" {
+		req.Header.Set("X-BOT-KEY", botKey)
+	}
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body)
+}
+
+func registerGroupMember(apiURL, botKey string, groupID, userID int64, username string) {
+	payload := map[string]interface{}{
+		"group_id":    groupID,
+		"user_id":     userID,
+		"username":    username,
+	}
+	body, _ := json.Marshal(payload)
+	req, _ := http.NewRequest("POST", apiURL+"/internal/group-members", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	if botKey != "" {
+		req.Header.Set("X-BOT-KEY", botKey)
+	}
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body)
 }
