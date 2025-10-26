@@ -6,9 +6,10 @@ import { formatCurrency, formatDate } from '../../utils/helpers'
 type RecentTransactionsProps = {
   token: string
   onViewAll: () => void
+  onViewCategories?: () => void
 }
 
-export const RecentTransactions: React.FC<RecentTransactionsProps> = ({ token, onViewAll }) => {
+export const RecentTransactions: React.FC<RecentTransactionsProps> = ({ token, onViewAll, onViewCategories }) => {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState<TransactionFilters>({
@@ -120,6 +121,11 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({ token, o
         <button className="view-all-btn" onClick={onViewAll}>
           Показать всё
         </button>
+        {onViewCategories && (
+          <button className="view-categories-btn" onClick={onViewCategories}>
+            📁 Категории
+          </button>
+        )}
       </div>
     </div>
   )

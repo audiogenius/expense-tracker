@@ -27,6 +27,7 @@ import { CategoryPieChart } from './components/Charts/CategoryPieChart'
 import { RecentTransactions } from './components/Transactions/RecentTransactions'
 import { AddTransaction } from './components/Transactions/AddTransaction'
 import { TransactionsPage } from './components/Transactions/TransactionsPage'
+import { CategoriesPage } from './components/Categories/CategoriesPage'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement)
 
@@ -48,7 +49,7 @@ const App: React.FC = () => {
   const [filterCategory, setFilterCategory] = useState<number | null>(null)
   const [filterPeriod, setFilterPeriod] = useState<Period>('all')
   const [customPeriod, setCustomPeriod] = useState<CustomPeriod | undefined>(undefined)
-  const [currentPage, setCurrentPage] = useState<'dashboard' | 'transactions'>('dashboard')
+  const [currentPage, setCurrentPage] = useState<'dashboard' | 'transactions' | 'categories'>('dashboard')
   
   // Chart settings
   const [chartType, setChartType] = useState<ChartType>('expenses')
@@ -110,6 +111,10 @@ const App: React.FC = () => {
     setCurrentPage('transactions')
   }
 
+  const handleViewCategories = () => {
+    setCurrentPage('categories')
+  }
+
   const handleBackToDashboard = () => {
     setCurrentPage('dashboard')
   }
@@ -152,6 +157,20 @@ const App: React.FC = () => {
     )
   }
 
+  if (currentPage === 'categories') {
+    return (
+      <div className="app-center">
+        <Header profile={profile} onLogout={handleLogout} />
+        <div className="page-header">
+          <button onClick={handleBackToDashboard} className="back-btn">
+            ← Назад к дашборду
+          </button>
+        </div>
+        <CategoriesPage token={token!} />
+      </div>
+    )
+  }
+
   return (
     <div className="app-center">
       <Header profile={profile} onLogout={handleLogout} />
@@ -187,7 +206,11 @@ const App: React.FC = () => {
 
         {/* RIGHT COLUMN */}
         <div className="right-column">
-          <RecentTransactions token={token!} onViewAll={handleViewAllTransactions} />
+          <RecentTransactions 
+            token={token!} 
+            onViewAll={handleViewAllTransactions}
+            onViewCategories={handleViewCategories}
+          />
           <AddTransaction token={token!} onTransactionAdded={handleTransactionAdded} />
         </div>
       </div>

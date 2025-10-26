@@ -58,14 +58,14 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({ token }) => 
       })
 
       if (reset) {
-        setTransactions(response.transactions)
+        setTransactions(response.transactions || [])
         setCurrentPage(1)
       } else {
-        setTransactions(prev => [...prev, ...response.transactions])
+        setTransactions(prev => [...prev, ...(response.transactions || [])])
         setCurrentPage(page)
       }
 
-      setHasMore(response.pagination.has_next)
+      setHasMore(response.pagination?.has_next || false)
     } catch (error) {
       console.error('Failed to load transactions:', error)
     } finally {

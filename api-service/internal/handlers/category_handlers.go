@@ -325,26 +325,29 @@ func (h *CategoryHandlers) GetCategorySuggestions(w http.ResponseWriter, r *http
 func (h *CategoryHandlers) generateSmartSuggestions(ctx context.Context, userID int, query string) ([]categorySuggestion, error) {
 	var suggestions []categorySuggestion
 
-	// Get category suggestions with usage frequency and similarity
+	// Get category suggestions with usage frequency
 	categoryQuery := `
 		WITH user_category_usage AS (
 			SELECT 
 				c.id,
 				c.name,
 				COUNT(e.id) as usage_count,
-				similarity(c.name, $2) as similarity_score
+				CASE 
+					WHEN LOWER(c.name) LIKE LOWER($2 || '%') THEN 1.0
+					WHEN LOWER(c.name) LIKE LOWER('%' || $2 || '%') THEN 0.5
+					ELSE 0.3
+				END as similarity_score
 			FROM categories c
 			LEFT JOIN expenses e ON c.id = e.category_id 
 				AND e.user_id = $1 
 				AND e.timestamp >= NOW() - INTERVAL '30 days'
-			WHERE c.name ILIKE '%' || $2 || '%' 
-				OR similarity(c.name, $2) > 0.3
+			WHERE c.name ILIKE '%' || $2 || '%'
 			GROUP BY c.id, c.name
 		)
 		SELECT 
 			id, name, usage_count, similarity_score
 		FROM user_category_usage
-		ORDER BY usage_count DESC, similarity_score DESC
+		ORDER BY similarity_score DESC, usage_count DESC
 		LIMIT 20
 	`
 
@@ -375,7 +378,7 @@ func (h *CategoryHandlers) generateSmartSuggestions(ctx context.Context, userID 
 		})
 	}
 
-	// Get subcategory suggestions with usage frequency and similarity
+	// Get subcategory suggestions with usage frequency
 	subcategoryQuery := `
 		WITH user_subcategory_usage AS (
 			SELECT 
@@ -383,20 +386,23 @@ func (h *CategoryHandlers) generateSmartSuggestions(ctx context.Context, userID 
 				s.name,
 				c.name as category_name,
 				COUNT(e.id) as usage_count,
-				similarity(s.name, $2) as similarity_score
+				CASE 
+					WHEN LOWER(s.name) LIKE LOWER($2 || '%') THEN 1.0
+					WHEN LOWER(s.name) LIKE LOWER('%' || $2 || '%') THEN 0.5
+					ELSE 0.3
+				END as similarity_score
 			FROM subcategories s
 			JOIN categories c ON s.category_id = c.id
 			LEFT JOIN expenses e ON s.id = e.subcategory_id 
 				AND e.user_id = $1 
 				AND e.timestamp >= NOW() - INTERVAL '30 days'
-			WHERE s.name ILIKE '%' || $2 || '%' 
-				OR similarity(s.name, $2) > 0.3
+			WHERE s.name ILIKE '%' || $2 || '%'
 			GROUP BY s.id, s.name, c.name
 		)
 		SELECT 
 			id, name, category_name, usage_count, similarity_score
 		FROM user_subcategory_usage
-		ORDER BY usage_count DESC, similarity_score DESC
+		ORDER BY similarity_score DESC, usage_count DESC
 		LIMIT 20
 	`
 
