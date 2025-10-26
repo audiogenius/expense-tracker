@@ -98,8 +98,13 @@ func (h *TransactionHandlers) GetTransactions(w http.ResponseWriter, r *http.Req
 
 	// Get whitelist IDs for family transactions
 	whitelistIDs := make([]int64, 0)
+	hasWildcard := false
 	for _, idStr := range h.Auth.Whitelist {
-		if idStr != "*" {
+		if idStr == "*" {
+			hasWildcard = true
+			break
+		}
+		if idStr != "" {
 			var tgID int64
 			fmt.Sscan(idStr, &tgID)
 			whitelistIDs = append(whitelistIDs, tgID)
@@ -152,10 +157,12 @@ func (h *TransactionHandlers) GetTransactions(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	// User filter (whitelist)
-	whereConditions = append(whereConditions, fmt.Sprintf("u.telegram_id = ANY($%d)", argIndex))
-	args = append(args, whitelistIDs)
-	argIndex++
+	// User filter (whitelist) - only if not wildcard and has IDs
+	if !hasWildcard && len(whitelistIDs) > 0 {
+		whereConditions = append(whereConditions, fmt.Sprintf("u.telegram_id = ANY($%d)", argIndex))
+		args = append(args, whitelistIDs)
+		argIndex++
+	}
 
 	// Add keyset pagination condition
 	if cursor != "" {
