@@ -49,12 +49,10 @@ func (h *AuthHandlers) Login(w http.ResponseWriter, r *http.Request) {
 
 	// Create request from form data
 	req := LoginRequest{
-		ID:        r.FormValue("id"),
-		Username:  r.FormValue("username"),
-		PhotoURL:  r.FormValue("photo_url"),
-		Hash:      r.FormValue("hash"),
-		FirstName: r.FormValue("first_name"),
-		LastName:  r.FormValue("last_name"),
+		ID:       r.FormValue("id"),
+		Username: r.FormValue("username"),
+		PhotoURL: r.FormValue("photo_url"),
+		// Hash, FirstName, LastName будут использованы позже для проверки Telegram
 	}
 
 	log.Info().

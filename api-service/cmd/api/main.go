@@ -65,14 +65,14 @@ func main() {
 	r.Get("/internal/expenses/total", internalHandlers.InternalGetTotalExpenses)
 	r.Get("/internal/debts", internalHandlers.InternalGetDebts)
 
-	// Protected routes
-	r.Route("/", func(r chi.Router) {
+	// Protected routes with /api prefix
+	r.Route("/api", func(r chi.Router) {
 		r.Use(a.Middleware)
 
 		// Expenses endpoints
 		r.Post("/expenses", expenseHandlers.AddExpense)
-		r.Get("/expenses", expenseHandlers.GetExpenses)            // Use new modular handler
-		r.Get("/expenses/total", expenseHandlers.GetTotalExpenses) // Use new modular handler
+		r.Get("/expenses", expenseHandlers.GetExpenses)
+		r.Get("/expenses/total", expenseHandlers.GetTotalExpenses)
 		r.Post("/expenses/shared", debtHandlers.CreateSharedExpense)
 
 		// Incomes endpoints
@@ -86,8 +86,8 @@ func main() {
 		// Subcategories CRUD
 		r.Post("/subcategories", categoryHandlers.CreateSubcategory)
 		r.Get("/subcategories", categoryHandlers.GetSubcategories)
-		r.Put("/subcategories/{id}", categoryHandlers.UpdateSubcategory)    // Use new modular handler
-		r.Delete("/subcategories/{id}", categoryHandlers.DeleteSubcategory) // Use new modular handler
+		r.Put("/subcategories/{id}", categoryHandlers.UpdateSubcategory)
+		r.Delete("/subcategories/{id}", categoryHandlers.DeleteSubcategory)
 
 		// Category suggestions
 		r.Get("/suggestions/categories", categoryHandlers.GetCategorySuggestions)
@@ -95,6 +95,9 @@ func main() {
 		// Debts and balance
 		r.Get("/debts", debtHandlers.GetDebts)
 		r.Get("/balance", debtHandlers.GetBalance)
+
+		// Categories (protected version)
+		r.Get("/categories", categoryHandlers.GetCategories)
 	})
 
 	// Public login endpoint (must be after protected routes to avoid conflicts)

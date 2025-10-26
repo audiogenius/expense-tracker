@@ -4,7 +4,7 @@ type TelegramLoginProps = {
   onAuth: (authData: Record<string, any>) => void
 }
 
-export const TelegramLogin: React.FC<TelegramLoginProps> = ({ onAuth }) => {
+export const TelegramLogin = ({ onAuth }: TelegramLoginProps) => {
   const widgetRef = useRef<HTMLDivElement | null>(null)
   const [widgetLoading, setWidgetLoading] = useState<boolean>(false)
   const [widgetError, setWidgetError] = useState<string | null>(null)
