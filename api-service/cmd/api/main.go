@@ -96,6 +96,70 @@ func main() {
 		// Debts and balance
 		r.Get("/debts", debtHandlers.GetDebts)
 		r.Get("/balance", debtHandlers.GetBalance)
+
+		// Analytics endpoints (proxy to analytics-service)
+		r.Get("/analytics/health", func(w http.ResponseWriter, r *http.Request) {
+			// Proxy to analytics-service
+			analyticsURL := os.Getenv("ANALYTICS_URL")
+			if analyticsURL == "" {
+				analyticsURL = "http://analytics:8081"
+			}
+			
+			resp, err := http.Get(analyticsURL + "/health")
+			if err != nil {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusServiceUnavailable)
+				json.NewEncoder(w).Encode(map[string]string{
+					"status": "error",
+					"message": "Analytics service unavailable",
+				})
+				return
+			}
+			defer resp.Body.Close()
+			
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(resp.StatusCode)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"status": "ok",
+				"ollama_status": "available",
+				"model": "llama2",
+			})
+		})
+
+		r.Post("/analytics/summary", func(w http.ResponseWriter, r *http.Request) {
+			// Proxy to analytics-service
+			analyticsURL := os.Getenv("ANALYTICS_URL")
+			if analyticsURL == "" {
+				analyticsURL = "http://analytics:8081"
+			}
+			
+			// Forward the request
+			resp, err := http.Post(analyticsURL + "/summary", "application/json", r.Body)
+			if err != nil {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusServiceUnavailable)
+				json.NewEncoder(w).Encode(map[string]string{
+					"status": "error",
+					"message": "Analytics service unavailable",
+				})
+				return
+			}
+			defer resp.Body.Close()
+			
+			// Copy response
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(resp.StatusCode)
+			
+			var result map[string]interface{}
+			if err := json.NewDecoder(resp.Body).Decode(&result); err == nil {
+				json.NewEncoder(w).Encode(result)
+			} else {
+				json.NewEncoder(w).Encode(map[string]string{
+					"status": "error",
+					"message": "Failed to parse analytics response",
+				})
+			}
+		})
 	})
 
 	// Public login endpoint (must be after protected routes to avoid conflicts)

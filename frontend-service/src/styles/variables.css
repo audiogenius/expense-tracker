@@ -5,10 +5,16 @@
   --glass-bg: rgba(255, 255, 255, 0.08);
   --glass-bg-hover: rgba(255, 255, 255, 0.12);
   --text: #ffffff;
+  --text-primary: #ffffff;
   --text-secondary: rgba(255, 255, 255, 0.9);
   --text-muted: rgba(255, 255, 255, 0.6);
   --accent: #a78bfa;
   --accent-hover: #c4b5fd;
+  --primary: #8b5cf6;
+  --primary-dark: #7c3aed;
+  --success: #10b981;
+  --error: #ef4444;
+  --border: rgba(255, 255, 255, 0.1);
   --border-radius: 24px;
   --border-radius-sm: 16px;
   --spacing: 20px;

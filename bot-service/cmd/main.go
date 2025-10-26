@@ -488,18 +488,18 @@ func getSummary(botToken, apiURL, botKey string, fromID int64, chatID int64, per
 		"period":      period,
 	}
 	body, _ := json.Marshal(payload)
-	
+
 	req, err := http.NewRequest("POST", apiURL+"/analytics/summary", bytes.NewReader(body))
 	if err != nil {
 		sendMessage(botToken, chatID, "❌ Ошибка при создании запроса")
 		return
 	}
-	
+
 	req.Header.Set("Content-Type", "application/json")
 	if botKey != "" {
 		req.Header.Set("X-BOT-KEY", botKey)
 	}
-	
+
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -507,24 +507,24 @@ func getSummary(botToken, apiURL, botKey string, fromID int64, chatID int64, per
 		return
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode != 200 {
 		sendMessage(botToken, chatID, fmt.Sprintf("❌ Ошибка получения саммари (код %d)", resp.StatusCode))
 		return
 	}
-	
+
 	var result map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		sendMessage(botToken, chatID, "❌ Ошибка обработки ответа")
 		return
 	}
-	
+
 	summary, ok := result["summary"].(string)
 	if !ok || summary == "" {
 		sendMessage(botToken, chatID, "❌ Саммари не получен. Возможно, Ollama недоступна.")
 		return
 	}
-	
+
 	// Format period name
 	periodName := "сегодня"
 	if period == "week" {
@@ -532,7 +532,7 @@ func getSummary(botToken, apiURL, botKey string, fromID int64, chatID int64, per
 	} else if period == "month" {
 		periodName = "за месяц"
 	}
-	
+
 	message := fmt.Sprintf("🤖 *AI Саммари %s*\n\n%s", periodName, summary)
 	sendMessage(botToken, chatID, message)
 }

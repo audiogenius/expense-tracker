@@ -55,6 +55,9 @@ const App: React.FC = () => {
   // Chart settings
   const [chartType, setChartType] = useState<ChartType>('expenses')
   const [chartPeriod, setChartPeriod] = useState<ChartPeriod>('days')
+  
+  // Refresh trigger for RecentTransactions
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   // Fetch data on mount and period change
   useEffect(() => {
@@ -106,6 +109,7 @@ const App: React.FC = () => {
 
   const handleTransactionAdded = async () => {
     await fetchData()
+    setRefreshTrigger(prev => prev + 1)
   }
 
   const handleViewAllTransactions = () => {
@@ -235,6 +239,7 @@ const App: React.FC = () => {
           <RecentTransactions 
             token={token!} 
             onViewAll={handleViewAllTransactions}
+            refreshTrigger={refreshTrigger}
           />
           <AddTransaction token={token!} onTransactionAdded={handleTransactionAdded} />
         </div>

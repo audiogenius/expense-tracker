@@ -6,9 +6,10 @@ import { formatCurrency, formatDate } from '../../utils/helpers'
 type RecentTransactionsProps = {
   token: string
   onViewAll: () => void
+  refreshTrigger?: number
 }
 
-export const RecentTransactions: React.FC<RecentTransactionsProps> = ({ token, onViewAll }) => {
+export const RecentTransactions: React.FC<RecentTransactionsProps> = ({ token, onViewAll, refreshTrigger }) => {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState<TransactionFilters>({
@@ -18,7 +19,7 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({ token, o
 
   useEffect(() => {
     loadTransactions()
-  }, [filters])
+  }, [filters, refreshTrigger])
 
   const loadTransactions = async () => {
     try {
