@@ -96,21 +96,6 @@ func (h *TransactionHandlers) GetTransactions(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Get whitelist IDs for family transactions
-	whitelistIDs := make([]int64, 0)
-	hasWildcard := false
-	for _, idStr := range h.Auth.Whitelist {
-		if idStr == "*" {
-			hasWildcard = true
-			break
-		}
-		if idStr != "" {
-			var tgID int64
-			fmt.Sscan(idStr, &tgID)
-			whitelistIDs = append(whitelistIDs, tgID)
-		}
-	}
-
 	// Build WHERE clause
 	var whereConditions []string
 	var args []interface{}
@@ -159,7 +144,7 @@ func (h *TransactionHandlers) GetTransactions(w http.ResponseWriter, r *http.Req
 
 	// Get user's groups for filtering
 	var userGroupIDs []int64
-	groupRows, err := h.DB.Query(r.Context(), 
+	groupRows, err := h.DB.Query(r.Context(),
 		"SELECT group_id FROM group_members WHERE user_id = $1", userID)
 	if err == nil {
 		defer groupRows.Close()
