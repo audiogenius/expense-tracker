@@ -168,7 +168,7 @@ const App: React.FC = () => {
           />
 
           {/* Charts */}
-          {filteredExpenses.length > 0 && (
+          {(expenses.length > 0 || incomes.length > 0) && (
             <div className="charts-grid">
               <ExpenseLineChart 
                 expenses={filteredExpenses} 

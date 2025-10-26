@@ -193,7 +193,7 @@ func (h *TransactionHandlers) GetTransactions(w http.ResponseWriter, r *http.Req
 			   e.operation_type, e.timestamp, e.is_shared, u.username,
 			   c.name as category_name, s.name as subcategory_name
 		FROM expenses e
-		LEFT JOIN users u ON u.id = e.user_id
+		LEFT JOIN users u ON u.telegram_id = e.user_id
 		LEFT JOIN categories c ON e.category_id = c.id
 		LEFT JOIN subcategories s ON e.subcategory_id = s.id
 		%s
